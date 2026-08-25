@@ -5,17 +5,23 @@
 > 全部由**你**依 [`docs/SRS.md`](docs/SRS.md) 產出。這就是本次專題的作業內容。
 
 **技術棧**：Python 3 ／ Django ／ SQLite ／ AdminLTE 3.2 ／ **uv**（套件管理）
-**必讀**：[`docs/SRS.md`](docs/SRS.md)——第 2 章**每一條編號都是驗收項**。
+**必讀三份文件**（各司其職，別混著讀）：
+
+| 文件 | 全名 | 讀它做什麼 |
+|---|---|---|
+| [`docs/SRS.md`](docs/SRS.md) | Software Requirements Specification<br>軟體需求規格書 | **要做什麼**——第 2 章每條編號都是驗收項 |
+| [`docs/SDD.md`](docs/SDD.md) | Software Design Document<br>軟體設計文件 | **怎麼做**——UI 版型、Docker 部署、資料模型 |
+| [`docs/GUIDE.md`](docs/GUIDE.md) | Course Guide<br>課程指引 | **怎麼學**——里程碑、踩坑地圖 |
 
 ---
 
 ## 開工前三件事
 
-**1. 精讀 SRS 第 2 章。** TECH／FACT／TASK／PERS／ACC 每條編號都會被逐條打勾驗收。
-特別是 **2.1.1 UI 版型規範**與 **2.1.2 Docker Compose 部署規格**——這兩節是硬規格，
-不是建議。
+**1. 精讀 SRS 第 2 章（需求），再讀 SDD（設計）。** TECH／FACT／TASK／PERS／ACC
+每條編號都會被逐條打勾驗收。SDD 的 **§1 UI 版型規範**與 **§2 Docker Compose 部署規格**
+是硬規格，不是建議；**§3 資料模型（ER 圖）**開工前先看，能少走很多冤枉路。
 
-**2. 先讀附錄 B 踩坑地圖。** ISO 第 53 週、排程 race condition、CSV 編碼（CP950）
+**2. 先讀 [GUIDE.md](docs/GUIDE.md) §2 踩坑地圖。** ISO 第 53 週、排程 race condition、CSV 編碼（CP950）
 是**必撞的三個**。開工前讀過，撞到時知道回來對號入座，能省下好幾個小時。
 
 **3. 確認工具鏈。**
@@ -55,8 +61,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ## 交付門檻（照這個順序自測）
 
-1. **附錄 A 里程碑 M1~M6** 逐項完成——commit 歷史要看得出節奏（最後一天一包 zip 直接扣分）。
-2. **附錄 C Demo 劇本**自己走一遍——老師抽查用的是同一份，10 分鐘走位。
+1. **[GUIDE.md](docs/GUIDE.md) §1 里程碑 M1~M6** 逐項完成——commit 歷史要看得出節奏（最後一天一包 zip 直接扣分）。
+2. **[SRS.md](docs/SRS.md) 附錄 Demo 劇本**自己走一遍——老師抽查用的是同一份，10 分鐘走位。
 3. **ACC-6 斷網驗收**：拔網路線／關 Wi-Fi，全功能仍可展示，DevTools Network 零外部請求。
 4. **ACC-7 Compose 驗收**：`docker compose up -d` 三步啟動；`down` 再 `up` 後**資料仍在**。
 
@@ -75,7 +81,8 @@ mkdir fms-v2 && cd fms-v2
 cp -r /path/to/FMS_LAB/FMS_V2/. .     # Windows PowerShell: Copy-Item -Recurse ...\FMS_V2\* .
 ```
 
-複製過來的只有 `README.md` 與 `docs/SRS.md`——**這是正常的**，其餘全部是你要寫的。
+複製過來的只有 `README.md` 與 `docs/`（SRS／SDD／GUIDE 三份）——**這是正常的**，
+其餘全部是你要寫的。
 
 ### 步驟 2：git init（**注意兩個坑**）
 

@@ -1,7 +1,22 @@
 # 需求規格書（Lastenheft）：工廠管理系統（Factory Management System）
 
-**程式設計專題 WI（Programming Project WI）** ｜ v2.3（2026-08-25）：UI 採 **AdminLTE**；套件管理採 **uv**
+**程式設計專題 WI（Programming Project WI）** ｜ v3.0（2026-08-25）：Python 路線（Django + AdminLTE + uv）
 
+
+> **本文件是 SRS（Software Requirements Specification，軟體需求規格書），
+> 只回答「系統要滿足什麼」。** 「怎麼做」（UI 版型、Docker 部署、套件管理）已分離至
+> [`SDD.md`](SDD.md)；里程碑、踩坑地圖等教學材料見 [`GUIDE.md`](GUIDE.md)。
+
+| 文件 | 全名 | 回答 | 讀者 |
+|---|---|---|---|
+| **SRS.md**（本檔） | **S**oftware **R**equirements **S**pecification<br>軟體需求規格書 | 系統**要滿足什麼**——逐條可驗收 | 全部人，驗收依據 |
+| [SDD.md](SDD.md) | **S**oftware **D**esign **D**ocument<br>軟體設計文件 | **怎麼做**——UI 版型、部署、套件管理 | 開工前與實作中 |
+| [GUIDE.md](GUIDE.md) | Course Guide<br>課程指引 | **怎麼學**——里程碑、踩坑、Demo 劇本 | 學員與講師 |
+
+> **為什麼要分這三份？** 業界慣例（IEEE 830 / ISO 29148）：SRS 描述**需求**，
+> 必須「可驗證且實作中立」——同一份 SRS 換一套技術棧仍然成立。本專案的
+> **V2 與 V3 就是最好的例子：需求編號一字不差，技術棧完全不同**
+> （見 [GUIDE.md](GUIDE.md) 的版本對照）。SDD 描述**設計決策**，技術棧一換就要重寫。
 
 ## 1. 概述（Overview）
 
@@ -24,75 +39,18 @@
 | **TECH-3**  | 持久性資料儲存於一個 SQL 資料庫                                                                                                       |
 | **TECH-4**  | 可以使用 Django 提供的 SQLite 資料庫；不需要外部資料庫                                                                                |
 | **TECH-5**  | **開發期**可使用 Django 開發用 Web 伺服器；**交付與驗收必須以 Docker Compose 啟動**（見 TECH-13）                                       |
-| **TECH-6**  | 使用者介面以 **Django Templates + AdminLTE**（Bootstrap 底）實作，產出語法正確的 HTML5/CSS（版型規範見 2.1.1）                          |
+| **TECH-6**  | 使用者介面以 **Django Templates + AdminLTE**（Bootstrap 底）實作，產出語法正確的 HTML5/CSS（版型規範見 [SDD.md](SDD.md) §1）                          |
 | **TECH-7**  | 程式碼必須能在 Windows、macOS 與 Linux 上執行                                                                                         |
 | **TECH-8**  | 程式碼必須以單元測試（unit tests）加以保護                                                                                            |
 | **TECH-9**  | 所有使用者輸入都必須經過驗證，以防範 CSRF、程式碼注入（code injection）與未授權存取                                                   |
 | **TECH-10** | 語意上不正確的使用者輸入必須以清楚的錯誤訊息加以拒絕                                                                                  |
 | **TECH-11** | 系統必須具備可調整性（adaptable）；產品（products）、製程（processes）、證照（certifications）與據點（sites）不可硬編碼（hard-coded） |
 | **TECH-12** | **完全離線可用，禁用任何 CDN**：所有前端資產（AdminLTE、Bootstrap、jQuery、圖示字型）一律 vendor 進 repo（`static/lib/`）；字型用系統字型堆疊（system font stack），**不得引用 Google Fonts**；Python 套件以 **uv** 離線安裝：`pyproject.toml` + **`uv.lock` 為唯一真相**，預先 `uv export --format requirements-txt > requirements.txt` 並 `uv pip download -d wheels/ -r requirements.txt` 備妥本地 wheelhouse，教室機 `uv pip install --offline --no-index --find-links wheels/ -r requirements.txt` |
-| **TECH-13** | **必須能以 Docker Compose 部署於單機**（Docker Desktop）：repo 附 `Dockerfile` + `docker-compose.yml`，`docker compose up -d` 一鍵啟動即可使用；**build 過程零外網**（依賴走 TECH-12 的 uv wheelhouse），基底映像以 `docker save`/`docker load` 預載（部署規格見 2.1.2） |
+| **TECH-13** | **必須能以 Docker Compose 部署於單機**（Docker Desktop）：repo 附 `Dockerfile` + `docker-compose.yml`，`docker compose up -d` 一鍵啟動即可使用；**build 過程零外網**（依賴走 TECH-12 的 uv wheelhouse），基底映像以 `docker save`/`docker load` 預載（部署規格見 [SDD.md](SDD.md) §2） |
 
-#### 2.1.1 UI 版型規範（AdminLTE）
-
-採 **AdminLTE 3.2**（Bootstrap 4.6 底；資產放 `static/lib/adminlte/`，離線可用、不依賴 CDN）。
-所有頁面套同一版型，**不得混用其他 CSS 框架**：
-
-| 區塊 | AdminLTE 落法 |
-|---|---|
-| 整體版型 | 標準 Admin 版型：頂部 `main-header navbar` + 左側 `main-sidebar sidebar-dark-primary` + `content-wrapper` |
-| 左側選單 | `nav-sidebar` 依角色分群渲染（Django template 依 `request.user` 角色判斷）：任務排程（主管）／我的班表（操作員）／公開看板（所有人）／系統管理（僅管理員，連 Django admin） |
-| 側欄底部 | 登入者姓名＋角色＋所屬據點；登出連結 |
-| 內容區 | 一律用 `card`（`card-header` 放標題與工具鈕、`card-body` 放表格/表單）；清單用 `table table-striped table-hover` |
-| 頁內分類切換 | `nav nav-pills`（膠囊式，不用底線 tabs） |
-| 登入頁 | AdminLTE `login-page` + `login-box` 版型（置中卡片；錯誤訊息具體但不揭露帳號是否存在） |
-| 狀態顯示 | 任務狀態以 `badge` 呈現：In Planning=`badge-secondary`、Scheduled=`badge-primary`、Finished=`badge-success` |
-| 表單驗證 | Django form errors 對接 Bootstrap `is-invalid` + `invalid-feedback`（TECH-10 清楚錯誤訊息） |
-| RWD | 沿用 AdminLTE 內建行為：窄屏側欄自動收合為抽屜（漢堡鈕） |
-
-> 選配：品牌主色可覆寫為鋼藍 `#2E6DA4`（自訂一支 `custom.css` 覆蓋 `.btn-primary`/
-> `.sidebar-dark-primary .nav-link.active`），非必要項。
-
-#### 2.1.2 Docker Compose 部署規格（TECH-13）
-
-單機（Docker Desktop）、單服務即可：
-
-```yaml
-# docker-compose.yml
-services:
-  web:
-    build: .                       # Dockerfile：FROM python:3.12-slim
-    ports: ["8000:8000"]
-    volumes:
-      - ./data:/app/data           # ★SQLite 檔放 volume——容器重建資料不丟
-    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
-```
-
-```dockerfile
-# Dockerfile（離線 build：不打 PyPI；uv 由官方映像 COPY 進來，不走網路安裝）
-FROM python:3.12-slim
-# uv 二進位（單一執行檔，無相依）——教室機需先 docker load 這個映像
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
-WORKDIR /app
-COPY wheels/ wheels/
-COPY pyproject.toml uv.lock requirements.txt ./
-# --offline：確保 build 期零外網;命中不了 wheelhouse 就讓它失敗,不要偷連 PyPI
-RUN uv pip install --system --offline --no-index --find-links wheels/ -r requirements.txt
-COPY . .
-```
-
-**規範**：
-1. `settings.py` 的資料庫路徑指向 `/app/data/db.sqlite3`（volume 內），**禁**放容器層。
-2. **離線三件套**：基底映像預載（`docker save python:3.12-slim ghcr.io/astral-sh/uv:latest
-   -o base.tar` → 教室機 `docker load`）＋ **uv wheelhouse**（`wheels/` 進 build context，
-   由 `uv.lock` 匯出）＋ `static/lib/` 已 vendor——三者齊備即可斷網
-   `docker compose up --build`。
-   > 為何用 uv 而非 pip：`uv.lock` 鎖定**跨平台可重現**的完整相依樹（含 hash），
-   > 三十位學員機器還原出的環境一模一樣;`uv sync` 亦比 pip 快一個量級，
-   > 教室現場等待時間差很有感。
-3. 課程接受 `runserver` 於容器內作為交付形態（單機教學用）；改 gunicorn 列加分項。
-4. 驗收指令即文件：README 須含「`docker load` → `docker compose up -d` → 開
-   `http://localhost:8000`」三步，照打即通（ACC-7）。
+> **技術實作規範全部移至 [`SDD.md`](SDD.md)**：AdminLTE UI 版型規範、
+> Docker Compose 部署規格。上表 TECH-1~13 是**需求**（要滿足什麼），
+> SDD 是**設計**（打算怎麼滿足）。
 
 ### 2.2 工廠結構（Factory Structure）
 
@@ -120,6 +78,99 @@ COPY . .
 | **TASK-8**  | 任務可處於「In Planning（規劃中）」、「Scheduled（已排程）」或「Finished（已完成）」三種狀態        |
 | **TASK-9**  | 每一個任務都有一個指定的生產據點，且只能在該據點被排程                                              |
 | **TASK-10** | 一旦完全排程完成，任務的工作站與時間就不可再變更                                                    |
+
+### 2.3.1 任務狀態機（TASK-8, TASK-10）
+
+```mermaid
+stateDiagram-v2
+    [*] --> InPlanning : 主管建立任務<br/>(PERS-9 產品＋製程)
+
+    InPlanning --> InPlanning : 修改指派<br/>(尚未完全排程,可改)
+    InPlanning --> Scheduled : 完成指派<br/>操作員＋工作站＋時段<br/>四道檢核全過(見 2.3.2)
+
+    Scheduled --> Finished : 操作員標記完成<br/>(PERS-20 僅被指派者)
+
+    Finished --> [*]
+
+    note right of Scheduled
+        TASK-10 鎖定
+        一旦 Scheduled,
+        工作站與時間不可再改
+    end note
+
+    note left of InPlanning
+        此階段尚未佔用資源,
+        不參與 TASK-6 重疊檢查
+    end note
+```
+
+**三個狀態的意義**（TASK-8）：
+
+| 狀態 | 意義 | 誰能改 | 是否佔用資源 |
+|---|---|---|---|
+| **In Planning** | 已建立，尚未完全排程 | 據點主管（PERS-12：限所屬據點） | 否 |
+| **Scheduled** | 已指派操作員＋工作站＋時段 | **不可再改**（TASK-10） | **是**（參與 TASK-6 重疊檢查） |
+| **Finished** | 操作員回報完成 | 僅被指派的操作員（PERS-20） | 否（釋放時段） |
+
+> **TASK-10 是硬規則，不是 UI 建議。** 「Scheduled 後不可改工作站與時間」必須由
+> **後端**擋下——模板把按鈕藏起來不算數。
+
+### 2.3.2 任務指派的檢核順序（TASK-3~7, FACT-7, PERS-11）
+
+指派是本系統最複雜的操作。下圖是**必須全數通過**的檢核；任一條失敗即拒絕，
+並回傳清楚的錯誤訊息（TECH-10）。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant M as 據點主管
+    participant V as Django View
+    participant F as Form / clean()
+    participant DB as SQLite
+
+    M->>V: 送出指派表單(操作員, 工作站, 起訖時間)
+    V->>V: ① 登入與據點權限<br/>(PERS-7/12 限所屬據點)
+    Note over V: 未登入 → 導向登入頁 / 越權 403
+
+    V->>F: 通過,交付表單驗證
+    F->>DB: 查登記(操作員×據點×週次)
+    DB-->>F: 有/無
+    Note over F: ② PERS-11 未登記 ⇒ 拒絕
+
+    F->>DB: 查操作員證照 vs 製程所需
+    DB-->>F: 證照清單
+    Note over F: ③ TASK-4 無證照 ⇒ 拒絕
+
+    F->>DB: 查工作站能力 vs 製程所需
+    DB-->>F: 能力清單
+    Note over F: ④ TASK-3 能力不符 ⇒ 拒絕
+
+    F->>F: ⑤ 時窗 週一~五 06:00-18:00<br/>(FACT-7)
+    F->>F: ⑥ 時長 ≤6h、5 分鐘倍數、同日內<br/>(TASK-7)
+
+    F->>DB: 查同時段是否已被佔用
+    DB-->>F: 現有任務
+    Note over F: ⑦ TASK-6 重疊 ⇒ 拒絕
+
+    F->>DB: save() → status = Scheduled
+    Note over DB: ⑧ DB 約束最後把關<br/>(UniqueConstraint 保底)
+    DB-->>F: 成功 / IntegrityError
+    F-->>V: 結果
+    V-->>M: 成功頁 / 表單錯誤訊息(具體)
+```
+
+**為什麼第 ⑦ 步和第 ⑧ 步要做兩次同樣的事？**
+
+第 ⑦ 步（應用層查詢）是為了**給出好的錯誤訊息**——告訴主管「這個時段已被任務 #123 佔用」。
+第 ⑧ 步（資料庫約束）是為了**正確性**——兩個主管同時指派同一工作站時，
+第 ⑦ 步會**雙雙通過**（各自查詢時都還沒人佔用），只有資料庫約束擋得住。
+
+> **這是本專案最重要的一課**：應用層檢查提供體驗，資料庫約束提供保證。
+> 少了第 ⑧ 步，系統在單人測試時完全正常，上線後才會出現雙重預訂。
+>
+> ⚠ **V2 的第 ⑧ 步防線比 V3 弱**：SQLite 沒有 `ExclusionConstraint`，
+> 只能用 `UniqueConstraint` 擋「完全相同的時段」，擋不住部分重疊。
+> 詳見 [SDD.md](SDD.md) §3。
 
 ### 2.4 使用者群組（User Groups）
 
@@ -206,37 +257,7 @@ COPY . .
 
 ---
 
-## 附錄 A：里程碑與評分（教學用）
-
-六個里程碑，每個都有**可展示的產出**；驗收＝逐條需求打勾。M＝必要、S＝加分。
-
-| 里程碑 | 產出（可 demo） | 對應需求 | 等級 |
-|---|---|---|---|
-| **M1** | Models + Django admin：產品/製程/證照/能力/據點/工作站 CRUD | TECH-11, PERS-4~6 | M |
-| **M2** | 登入 + 四角色權限骨架（未授權=403） | PERS-1~3, 7, 16, 23 | M |
-| **M3** | 操作員登記（據點×週次）+ 主管建任務 | FACT-3, PERS-9~11, 19 | M |
-| **M4** | **排程指派＋衝突檢核**（本專案的心臟：能力/證照/重疊/時窗） | TASK-3~7, FACT-7 | M |
-| **M5** | CSV 匯入 + 公開看板（匿名化） | PERS-15, 24~25 | M |
-| **M6** | 千筆效能 + 斷網驗收 + 單元測試補齊 | ACC-4, ACC-6, TECH-8 | M |
-| S | 週曆視覺化、Casbin/進階權限、finalize 鎖定 UX 等 | PERS-14 等 | S |
-
-**評分原則**：①逐條需求打勾（佔大宗）；②commit 歷史看得出里程碑節奏（防最後一天一包 zip）；
-③M4 衝突檢核必須有單元測試才算過（TECH-8 在此驗真）。
-
-## 附錄 B：踩坑地圖（開工前先讀，撞到再回來對號入座）
-
-**共通坑（不分技術棧）**：
-1. **ISO 8601 週次**：一年可能有 53 週；1/1 可能屬於「去年第 52 週」——用 `date.isocalendar()`，自己算必錯（FACT-2 隱藏陷阱）。
-2. **排程 race condition**：兩位主管同時指派同一工作站——應用層檢查會雙雙通過；**資料庫層 unique constraint 才是底**，正好學 transaction。
-3. **CSV 編碼**：Excel 存的 CSV 是 CP950 不是 UTF-8——匯入端須偵測或明訂編碼並給清楚錯誤（TECH-10）。
-4. **匿名化的位置**：在 template 藏名字＝沒藏（view source 看得到）——必須在 **queryset 層**就不取出真名（PERS-24）。
-
-**Django 專屬坑**：
-5. `USE_TZ` 與 naive/aware datetime 混用會炸——開工就決定時區策略，全案一致。
-6. Django admin 太好用的反作用：業務規則（TASK-3~7）**不可**只做在 admin 表單——一般 view 也要同一套驗證（抽到 model `clean()` / service 層）。
-7. `static/lib/` 資產漏檔（字型 webfonts 最常漏）——版型破了先查 DevTools 404，再查 TECH-12 清單。
-
-## 附錄 C：Demo 劇本（10 分鐘驗收走位；學員自測與老師抽查同一份）
+## 附錄：Demo 劇本（10 分鐘驗收走位；學員自測與老師抽查同一份）
 
 1. admin 登入 → 建 2 據點/3 製程/2 證照/2 能力（M1）
 2. 操作員 A 登記「據點1×第 N 週」；操作員 B 不登記（M3）
@@ -248,23 +269,3 @@ COPY . .
 8. 匯入千筆集 → 手動再建一筆任務,無可察覺變慢（ACC-4）
 9. 全程斷網,DevTools Network 零外部請求（ACC-6）
 
-## 附錄 D：V2 ↔ V3 對照（同一份需求，兩個世代的實作）
-
-| 面向 | V2（本版） | V3 |
-|---|---|---|
-| 語言/框架 | Python + Django（伺服端渲染） | TypeScript + Bun + Elysia + Refine（SPA） |
-| UI | AdminLTE（Bootstrap，template 渲染） | Ant Design（React 元件） |
-| 管理介面 | Django admin（**約定即得**） | Refine resources + accessControlProvider（**顯式接**） |
-| 資料庫 | SQLite（Django ORM） | **PostgreSQL 17 伺服器**（Docker,連線池 + SQL 模板） |
-| 驗證 | Django Forms / `clean()` | Elysia `t` + Zod 雙層 |
-| 測試 | Django `TestCase` | `bun test` + 每檔獨立 PG schema |
-| 教學重點 | MVC、ORM、約定優於配置 | 型別安全全棧、REST 契約、顯式權限模型 |
-
-> 兩版功能需求（FACT/TASK/PERS/ACC）編號完全相同——上完 V2 再看 V3，
-> 學的是「同一個問題，框架世代如何改變解法」。
-
----
-
-*v2.1（2026-08-25）：TECH-6/ACC-5 定案 AdminLTE + 2.1.1 UI 版型規範。*
-*v2.2（2026-08-25）：TECH-12 離線鐵律/ACC-6 斷網驗收；新增附錄 A~D（里程碑評分/踩坑地圖/Demo 劇本/版本對照）。需求編號不變。*
-*v2.3（2026-08-25）：Python 套件管理改採 **uv**（TECH-1/12/13 與 2.1.2 Dockerfile 同步）；功能需求（FACT/TASK/PERS/ACC/EXCL）編號不變。*

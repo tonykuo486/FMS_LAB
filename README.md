@@ -17,7 +17,10 @@ FMS_LAB/
 │   └── V2_V3_對照表.md       ← 兩版完整對照（講師備課/學員課後對讀）
 ├── FMS_V2/                   ← V2 教材（Python 路線）
 │   ├── README.md             ← 開工指引＋轉交自己 GitHub 的步驟
-│   └── docs/SRS.md           ← V2 需求規格 v2.3：Python + Django + SQLite + AdminLTE
+│   └── docs/
+│       ├── SRS.md            ← 需求規格書 v3.0（做什麼）＋狀態圖／時序圖
+│       ├── SDD.md            ← 軟體設計文件 v1.0（怎麼做）＋ER 圖
+│       └── GUIDE.md          ← 課程指引 v1.0（怎麼學：里程碑／踩坑地圖）
 └── FMS_V3/                   ← V3 教材（TypeScript 路線；原獨立 repo，已併入本 repo）
     ├── README.md             ← 開工指引＋轉交自己 GitHub 的步驟
     ├── .gitignore
@@ -36,10 +39,15 @@ FMS_LAB/
 | 棧 | Python 3 / Django / SQLite / AdminLTE | TypeScript / Bun / Elysia / PostgreSQL 17 / Refine + Ant Design |
 | 版本 | uv 管理（SRS 2.1.2） | **鎖定表 SRS 2.1.11**（2026-08-25 實測核實） |
 | 適合 | 第一個 Web 專案的初學者 | 已懂 HTTP/SQL，要學前後端分離 |
-| 規格 | [SRS.md](FMS_V2/docs/SRS.md) | [SRS](FMS_V3/docs/SRS.md)／[SDD](FMS_V3/docs/SDD.md)／[GUIDE](FMS_V3/docs/GUIDE.md) |
+| 規格 | [SRS](FMS_V2/docs/SRS.md)／[SDD](FMS_V2/docs/SDD.md)／[GUIDE](FMS_V2/docs/GUIDE.md) | [SRS](FMS_V3/docs/SRS.md)／[SDD](FMS_V3/docs/SDD.md)／[GUIDE](FMS_V3/docs/GUIDE.md) |
 
 功能需求兩版**一字不差**（編號相同）；差異全在實作層——詳見
 [docs/V2_V3_對照表.md](docs/V2_V3_對照表.md)。
+
+> **兩版都採 SRS／SDD／GUIDE 三份文件結構**（需求／設計／教學分離）。
+> **SRS 兩版幾乎等長**（V2 271 行、V3 273 行）——因為需求相同；
+> **SDD 差距懸殊**（V2 157 行、V3 644 行）——因為 Django「約定優於配置」把大量
+> 設計決策內建了，V3 走顯式契約路線每層都要自己接。**這個厚度差距本身就是教材**。
 
 ## 專案題目（30 秒版）
 
