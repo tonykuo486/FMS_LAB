@@ -40,6 +40,56 @@ docker compose exec db psql -U fms -d fms -c "SELECT version();"
 > 開發期你的後端是用 `bun run --watch` 跑在**宿主機**上，所以 `PGHOST=localhost`。
 > 等你把 backend 也容器化（交付形態），才會變成 `PGHOST=db`。
 
+## 用 DBeaver 連進資料庫（強烈建議）
+
+用 GUI 直接看資料，比每次下 `psql` 快得多——**排程衝突的資料到底長什麼樣、
+`EXCLUDE` 約束為什麼擋下你那筆**，看表比猜快。
+
+> DBeaver Community Edition 是免費的：https://dbeaver.io/download/
+> （教室離線環境請講師事先發安裝檔。）
+
+### 連線設定
+
+先確認資料庫起來了：`docker compose ps` → `db` 顯示 `healthy`。
+
+DBeaver 選 **Database ▸ New Database Connection ▸ PostgreSQL**，填：
+
+| 欄位 | 值 | 說明 |
+|---|---|---|
+| **Host** | `localhost` | ★不是 `db`——`db` 是容器內部的名字 |
+| **Port** | `5432` | 若改過 `.env` 的 `POSTGRES_PORT` 就填你改的 |
+| **Database** | `fms` | 測試庫則填 `fms_test` |
+| **Username** | `fms` | `.env` 的 `POSTGRES_USER` |
+| **Password** | 你在 `.env` 設的那組 | `POSTGRES_PASSWORD` |
+
+按 **Test Connection** → 成功再按 Finish。
+
+> **第一次連會問要不要下載 PostgreSQL 驅動** → 按下載（需網路，教室離線環境
+> 請事先在有網路時連一次，驅動會留在本機）。
+
+### 常見連不上的原因
+
+| 症狀 | 原因與解法 |
+|---|---|
+| `Connection refused` | 資料庫沒起來或還沒 ready。`docker compose ps` 看是不是 `healthy`（`starting` 不算） |
+| `password authentication failed` | `.env` 改過密碼，但資料庫是用**舊密碼**建的。PG 密碼只在首次建庫時寫入——要 `docker compose down -v`（★刪資料）再 `up` |
+| `database "fms" does not exist` | `.env` 的 `POSTGRES_DB` 跟你填的不一致 |
+| 連得上但看不到表 | 表還沒建（你還沒寫 migration），或看錯 schema——DBeaver 左側展開 `fms ▸ Schemas ▸ public ▸ Tables` |
+| Host 填 `db` 連不上 | `db` 只在 Docker 內部網路有效，從宿主機一律用 `localhost` |
+
+### 兩個實用技巧
+
+**① 測試庫另開一條連線。** `fms`（正式）與 `fms_test`（測試）各建一條，
+名字改清楚。SRS 2.1.6 規定測試禁連正式庫——連線名字取好，手滑的機率會低很多。
+
+**② 看得到 `EXCLUDE` 約束。** 展開 `Tables ▸ tasks ▸ Constraints`，
+你加的 `no_overlap_work_station` 會列在那。做 M4 排程衝突時，
+在 DBeaver 開兩個 SQL 編輯器分頁（＝兩條連線）同時 INSERT 重疊時段，
+可以**親眼看到一條成功、一條被擋回 `23P01`**——比讀文件有感。
+
+> pgvector 是本映像內建的，但要用才 `CREATE EXTENSION vector;`（本次作業用不到，
+> 見 SRS 2.1.10）。
+
 ## 常用指令
 
 | 目的 | 指令 |
