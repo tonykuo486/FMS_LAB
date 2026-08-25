@@ -1,0 +1,40 @@
+# ── Python / uv ──────────────────────────────────────────────
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# ★uv.lock 要進版控(環境可重現的唯一真相)——別加進來
+# wheelhouse:體積大且可由 uv.lock 重建(SDD §2 離線三件套)
+wheels/
+# ★requirements.txt 【要】進版控——SDD §2 的 Dockerfile 會 COPY 它;
+#   忽略掉的話,別人 clone 後 docker build 會失敗。它由 uv export 產生,
+#   改依賴時記得重新 export 並一起 commit。
+
+# ── Django ───────────────────────────────────────────────────
+# SQLite 落在 volume(SDD §2),不進版控
+data/
+*.sqlite3
+db.sqlite3
+
+# collectstatic 的輸出目錄(產物)
+staticfiles/
+
+# ★注意:static/lib/ 的 AdminLTE 資產【必須】進版控——
+#   TECH-12 離線鐵律要求 vendor 進 repo,別把整個 static/ 忽略掉。
+
+# 本地開發覆寫
+local_settings.py
+
+# ── 機敏 ─────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+**/.env
+
+# ── 編輯器 / 作業系統 ────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

@@ -17,6 +17,7 @@ FMS_LAB/
 │   └── V2_V3_對照表.md       ← 兩版完整對照（講師備課/學員課後對讀）
 ├── FMS_V2/                   ← V2 教材（Python 路線）
 │   ├── README.md             ← 開工指引＋轉交自己 GitHub 的步驟
+│   ├── .gitignore            ← Python/Django/uv 適用（★不擋 static/lib/ 離線資產）
 │   └── docs/
 │       ├── SRS.md            ← 需求規格書 v3.0（做什麼）＋狀態圖／時序圖
 │       ├── SDD.md            ← 軟體設計文件 v1.0（怎麼做）＋ER 圖

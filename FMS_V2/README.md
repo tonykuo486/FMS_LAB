@@ -81,7 +81,7 @@ mkdir fms-v2 && cd fms-v2
 cp -r /path/to/FMS_LAB/FMS_V2/. .     # Windows PowerShell: Copy-Item -Recurse ...\FMS_V2\* .
 ```
 
-複製過來的只有 `README.md` 與 `docs/`（SRS／SDD／GUIDE 三份）——**這是正常的**，
+複製過來的只有 `README.md`、`.gitignore` 與 `docs/`（SRS／SDD／GUIDE 三份）——**這是正常的**，
 其餘全部是你要寫的。
 
 ### 步驟 2：git init（**注意兩個坑**）
@@ -93,22 +93,21 @@ git init -b main
 git config user.email "<你的帳號>@users.noreply.github.com"
 git config user.name  "<你的帳號>"
 
-# ★坑2：先寫 .gitignore 再 add
+# ★坑2：先確認 .gitignore 再 add
 #   data/、wheels/、.venv/、__pycache__/ 進了歷史就很難清
-cat > .gitignore <<'GITIGNORE'
-.venv/
-__pycache__/
-*.py[cod]
-data/              # SQLite 落在 volume,不進版控
-wheels/            # 離線 wheelhouse,體積大且可由 uv.lock 重建
-staticfiles/       # collectstatic 產物
-.env
-GITIGNORE
+#   本目錄已附一份(隨教材複製過來),開工前打開看一遍:
+cat .gitignore
 
-git add -A && git commit -m "chore: 專案初始化（SRS + README + gitignore）"
+git add -A && git commit -m "chore: 專案初始化（文件 + gitignore）"
 ```
 
-> `uv.lock` **要**進版控（環境可重現）；`.venv/` 與 `wheels/` **不進**（可重建、體積大）。
+> **哪些要進版控**：`uv.lock`（環境可重現的唯一真相）、`pyproject.toml`、
+> `requirements.txt`（Dockerfile 會 `COPY` 它）、**以及 `static/lib/` 的 AdminLTE 資產**
+> （TECH-12 離線鐵律要求 vendor 進 repo）。
+> **不進版控**：`.venv/`、`wheels/`、`data/`、`staticfiles/`（可重建或體積大）。
+>
+> ⚠ 附的 `.gitignore` 刻意**沒有**忽略整個 `static/`——只忽略 `staticfiles/`
+> （collectstatic 產物）。把 `static/` 整個擋掉會讓離線資產進不了 repo，斷網驗收就掛了。
 
 ### 步驟 3：建遠端 repo 並推送
 
