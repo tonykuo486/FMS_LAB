@@ -1,0 +1,8 @@
+# V3 獨立 repo 歷史備份(如需拆回獨立 repo 改回 .git 即可)
+FMS_V3/.git-v3-standalone-backup/
+# 實作期產物
+**/node_modules/
+**/data/
+**/.env
+**/dist/
+**/wheels/
