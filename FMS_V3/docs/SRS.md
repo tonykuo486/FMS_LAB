@@ -1,6 +1,6 @@
 # 需求規格書（Lastenheft）：工廠管理系統（Factory Management System）
 
-**程式設計專題 WI（Programming Project WI）** ｜ v3.3（2026-08-25）：TypeScript 全棧版（PostgreSQL 17）
+**程式設計專題 WI（Programming Project WI）** ｜ v3.4（2026-08-25）：TypeScript 全棧版（PostgreSQL 17；版本鎖定見 2.1.11）
 
 ---
 
@@ -22,10 +22,10 @@
 
 | 編號              | 內容                                                                                                                                  |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| **TECH-1**  | 實作語言為 **TypeScript**（`strict: true`），執行環境 **Bun**（runtime + 套件管理 + 測試器三合一）                                      |
+| **TECH-1**  | 實作語言為 **TypeScript 5.9.3**（`strict: true`），執行環境 **Bun 1.4.0**（runtime + 套件管理 + 測試器三合一）；**版本一律照 2.1.11 鎖定表寫死** |
 | **TECH-2**  | 後端框架：**Elysia**（REST API，路由層以內建 `t`（TypeBox）宣告請求 schema）；前端框架：**Refine + Ant Design**（React 18 + Vite）      |
 | **TECH-3**  | 持久性資料儲存於一個 SQL 資料庫（**PostgreSQL 17**），資料表結構以冪等 SQL（`CREATE TABLE IF NOT EXISTS`）於啟動時建立；schema 變更以**版本化 migration 檔**累加（`db/migrations/NNN_*.sql`），不改舊檔 |
-| **TECH-4**  | 資料庫使用**獨立的 PostgreSQL 伺服器**，以 Docker Compose 提供（映像 `pgvector/pgvector:0.8.6-pg17`＝PG 17 內建 pgvector）；後端經 TCP 以**連線池**（`postgres.js`）存取；資料落在具名 volume，**不放容器層**。開發期不需在本機安裝 PG——`docker compose up -d db` 即得（部署規格見 2.1.9） |
+| **TECH-4**  | 資料庫使用**獨立的 PostgreSQL 伺服器**，以 Docker Compose 提供（映像 `pgvector/pgvector:0.8.6-pg17`＝PG 17 內建 pgvector）；後端經 TCP 以**連線池**（`pg`／node-postgres）存取；資料落在具名 volume，**不放容器層**。開發期不需在本機安裝 PG——`docker compose up -d db` 即得（部署規格見 2.1.9） |
 | **TECH-5**  | **開發期**用開發伺服器：先 `docker compose up -d db` 起資料庫，再 `bun run --watch src/index.ts`（後端）與 `vite`（前端，`/api` 反向代理到後端）；**交付與驗收必須以 Docker Compose 全棧啟動**（見 TECH-13）  |
 | **TECH-6**  | 使用者介面以 React + Ant Design 元件實作（由元件庫產出語法正確的 HTML，不手寫裸 HTML/CSS）                                              |
 | **TECH-7**  | 程式碼必須能在 Windows、macOS 與 Linux 上執行（Bun、Vite 跨平台無原生編譯依賴；PostgreSQL 統一走 Docker，三平台行為一致）                  |
@@ -46,7 +46,7 @@ Bun + Elysia 後端（3000）
    ├─ routes/     路由層：t schema 驗參 + JWT 解析 + 角色守衛
    ├─ services/   業務層：排程衝突檢核、證照/能力匹配、狀態機（In Planning→Scheduled→Finished）
    └─ db/         資料層：templates/（具名 SQL 模板：name + sql + params schema）
-                        + pool.ts（postgres.js 連線池）+ migrations/
+                        + pool.ts（pg 連線池單例）+ migrations/
    ▼  TCP 5432（連線池）
 PostgreSQL 17 + pgvector（Docker 服務 `db`；資料在具名 volume `fms_pgdata`）
    └─ 測試用同一台 PG,每個測試檔開自己的 schema（見 2.1.6）
@@ -59,21 +59,22 @@ PostgreSQL 17 + pgvector（Docker 服務 `db`；資料在具名 volume `fms_pgda
 
 | 關注點 | 套件 | 用途 |
 |---|---|---|
-| Runtime / 套件管理 / 測試 | **Bun** ≥1.1 | `bun install` / `bun run` / `bun test` 一把抓，免 Node+npm+jest 三件套 |
+| Runtime / 套件管理 / 測試 | **Bun 1.4.0** | `bun install` / `bun run` / `bun test` 一把抓，免 Node+npm+jest 三件套 |
 | 後端 HTTP | **elysia** + **@elysiajs/cors** | 路由、TypeBox 驗參、CORS |
 | 前端框架 | **@refinedev/core** + **@refinedev/antd** | 資源導向 CRUD 框架（詳 2.1.4） |
-| UI 元件 | **antd** 5、**@ant-design/icons** | 表格/表單/週曆檢視全用現成元件 |
+| UI 元件 | **antd 5.29.3**、**@ant-design/icons 5.6.1** | 表格/表單/週曆檢視全用現成元件（**不可升 antd 6**,見 2.1.11） |
 | 建置 | **vite** + **@vitejs/plugin-react** | 前端 dev server 與打包 |
 | 資料庫 | **PostgreSQL 17**（映像 `pgvector/pgvector:0.8.6-pg17`） | 真 PG 伺服器,內建 pgvector（詳 2.1.5） |
-| DB 驅動 / 連線池 | **postgres.js**（`postgres`） | TCP 連線池、參數化查詢、TS 型別友善 |
-| 驗證 | **zod**（服務層）/ Elysia `t`（路由層） | 雙層驗證：邊界擋格式、服務擋語意 |
+| DB 驅動 / 連線池 | **pg**（`node-postgres`） | **顯式**連線池（`new Pool` / `client.release()`）、參數化查詢——選它的理由見 2.1.11 |
+| 驗證 | **zod 3.x**（服務層）/ Elysia `t`（路由層） | 雙層驗證：邊界擋格式、服務擋語意 |
 | 認證 | **jose** | JWT 簽發/驗證（HS256），httpOnly cookie |
 | 密碼 | **Bun.password**（內建 argon2id） | 免額外套件 |
 | CSV 匯入 | **papaparse** | PERS-15 三類 CSV 上傳解析 |
-| 程式品質 | **typescript** ≥5.5（`tsc --noEmit`）、**biome**（lint + format 單一工具） | CI 三綠燈之二 |
+| 程式品質 | **typescript 5.9.3**（`tsc --noEmit`）、**biome**（lint + format 單一工具） | CI 三綠燈之二（**不使用 TS 7**,理由見 2.1.11） |
 | CI | **GitHub Actions** | push 即跑 `install → typecheck → test`（見 2.1.6） |
 
-> 版本以 repo 內 lockfile（`bun.lock`）為唯一真相；學員 `bun install` 即還原一致環境。
+> **完整鎖定版本見 2.1.11 版本鎖定表（2026-08-25 實測核實）**——`package.json` 一律寫死
+> 版本號不加 `^`;`bun.lock` 進版控,學員 `bun install` 即還原一致環境。
 
 #### 2.1.3 專案結構（monorepo，單一 GitHub repo）
 
@@ -85,7 +86,7 @@ fms/
 │   │   ├── routes/           # sites.ts / tasks.ts / registrations.ts / auth.ts / admin.ts / csv.ts
 │   │   ├── services/         # scheduling.ts（衝突/證照/能力檢核）、tasks.ts、auth.ts
 │   │   └── db/
-│   │       ├── pool.ts       # postgres.js 連線池單例（含測試用 schema 工廠）
+│   │       ├── pool.ts       # pg 連線池單例（含測試用 schema 工廠）
 │   │       ├── schema.sql    # 冪等建表（測試建 schema 時直接灌這支）
 │   │       ├── migrations/   # 版本化 migration：001_init.sql, 002_*.sql…（只增不改）
 │   │       └── templates/    # 具名 SQL 模板（每條：name + sql + zod params）
@@ -150,7 +151,8 @@ fms/
   4. **可被外部工具連線**——psql、DBeaver、ETL 工具、BI 都能連進來看同一份資料；
      嵌入式資料庫做不到，而這正是資料能流向資料倉儲的前提（2.1.10）。
 - **連線規範**：
-  - 後端以 **`postgres.js` 連線池單例**（`db/pool.ts`）存取，**禁止**每個請求開新連線。
+  - 後端以 **`pg` 連線池單例**（`db/pool.ts`，`new Pool({ max: 10 })`）存取，**禁止**每個請求
+    開新連線;取得的 client **務必 `release()` 歸還**（用 `try/finally` 包）。
   - 連線參數一律走環境變數（`PGHOST`/`PGPORT`/`PGDATABASE`/`PGUSER`/`PGPASSWORD`），
     repo 只放 `.env.example`；**真 `.env` 不進版控**（TECH-9）。
   - SQL 一律參數化（`$1, $2…`），禁字串拼接（2.1.7 鐵律 2）。
@@ -428,6 +430,81 @@ location /     { try_files $uri /index.html; }        # SPA fallback
 > 若將來要做模型推論或大規模向量運算，那是**應用層**的事（獨立服務），
 > 不會、也不該塞進 PG。這兩層別混為一談。
 
+#### 2.1.11 版本鎖定表（**2026-08-25 實測核實**）
+
+下表是**實際裝起來、跑起來、測過、打包過**的組合，不是查文件推論的。
+`package.json` **一律寫死版本號（不加 `^` 或 `~`）**——教室三十台機器要長一模一樣。
+
+**驗證方式**：以 Bun 1.4.0 全新安裝（無既有 lockfile）→ 執行 → `bun test` →
+`tsc --noEmit` → `vite build`。結果：後端 **7/7 測試通過**、前端 **2/2 測試通過**、
+前後端 typecheck 皆 **0 error**、Vite production build 成功（3,820 modules）。
+
+**Runtime**
+
+| 項目 | 版本 | 說明 |
+|---|---|---|
+| **Bun** | **1.4.0** | runtime + 套件管理 + 測試器三合一 |
+| **PostgreSQL** | **17**（映像 `pgvector/pgvector:0.8.6-pg17`） | 見 2.1.5 |
+
+**後端（`backend/package.json`）**
+
+| 套件 | 版本 | 用途 |
+|---|---|---|
+| `elysia` | `1.4.29` | 路由 + TypeBox `t` 驗參 |
+| `@elysiajs/cors` | `1.4.2` | CORS |
+| `pg` | `8.23.0` | PostgreSQL 驅動與**連線池**（見下方選型說明） |
+| `zod` | `3.25.76` | 服務層驗證（**3.x,不是 4.x**） |
+| `jose` | `6.2.10` | JWT 簽發/驗證（HS256） |
+| `papaparse` | `5.7.0` | CSV 匯入（PERS-15） |
+| `typescript` | `5.9.3` | **不使用 TS 7**（見下方「為何不升」） |
+| `@types/bun` | `1.4.0` | 對齊 runtime |
+| `@types/pg` | `8.23.1` | — |
+| `@types/papaparse` | `5.3.16` | — |
+
+> 密碼雜湊用 **`Bun.password`**（內建 argon2id），不需額外套件（PERS-2）。
+
+**前端（`frontend/package.json`）**
+
+| 套件 | 版本 | 用途 |
+|---|---|---|
+| `react` / `react-dom` | `18.3.1` | **React 18,不是 19**（Refine 4 不支援 19） |
+| `antd` | **`5.29.3`** | **★不可升 6.x**（見附錄 B 坑 11） |
+| `@ant-design/icons` | `5.6.1` | 與 antd 5 同代 |
+| `@refinedev/core` | `4.58.0` | 資源導向 CRUD 框架 |
+| `@refinedev/antd` | `5.47.0` | Refine × antd 綁定 |
+| `@tanstack/react-query` | `4.44.0` | **Refine 的 peer,必須自己裝**（漏了執行期才爆） |
+| `dayjs` | `1.11.23` | Refine antd 的 peer |
+| `vite` | `6.4.3` | dev server + 打包 |
+| `@vitejs/plugin-react` | `4.3.4` | 與 Vite 6 同代 |
+| `typescript` | `5.9.3` | 與後端同版 |
+| `@types/react` / `@types/react-dom` | `18.3.18` / `18.3.5` | 對齊 React 18 |
+
+##### 為何是這一組（選型理由，值得讀）
+
+**① 為何 `pg` 而不是 `postgres.js`。** `pg` 的連線池是**顯式**的——
+`new Pool({ max: 10 })`、`client.release()` 你都看得見。本課要教「連線是有限資源」
+（2.1.5），用看得見的 API 才教得出來；把池藏起來的套件學不到這件事。
+
+**② 為何 TypeScript 5.9.3 而不是最新的 7.x。** TS 7 能跑（實測過），但生態、教學文章、
+Stack Overflow 答案都還沒跟上。**這門課的重點不是 TS 新特性,是排程邏輯**——
+卡在工具鏈上的每一小時都是從業務邏輯偷來的。同理選 PG 17 而非 18。
+
+**③ 為何 React 18 + Refine 4 而不是 React 19 + Refine 5。** 兩組都實測可用，但
+React 18 + Refine 4 + antd 5 是目前教學資源覆蓋最厚的組合。**版本一致與查得到答案，
+比版本新重要。**
+
+**④ 為何 zod 3 而不是 4。** 與上述同代生態對齊；zod 4 的 API 有變動，範例與教學多數
+仍是 3.x。
+
+> **`bun.lock` 必須進版控。** 它才是「環境可重現」的唯一真相——助教在自己機器上
+> `bun install` 必須還原出與你完全相同的版本樹。
+
+##### 升級守則
+
+課程期間**不要升級**。真要升，一次只升一個套件，且升完必須：
+`bun install` → `bun test` → `tsc --noEmit` → `vite build` **四項全綠**才算數。
+升級後 `bun.lock` 一起 commit。
+
 ### 2.2 工廠結構（Factory Structure）
 
 | 編號             | 內容                                                                                                                                 |
@@ -585,6 +662,14 @@ location /     { try_files $uri /index.html; }        # SPA fallback
    `condition: service_healthy`（2.1.9 規範 3）。
 10. **`docker compose down -v` 手滑**：`-v` 會連 volume 一起刪,資料全沒。
     平常用 `down` 就好;真要清庫再加 `-v`,而且想一下再按 Enter。
+11. **`bun add antd` 會裝到不相容的 antd 6（★最陰險的一坑）**：
+    `@refinedev/antd@5.47.0` 的 peer 要求是 `antd ^5.x`,但 antd 最新已是 6.x——
+    **Bun 對 peer 不相容不會報錯,直接裝下去**。更糟的是它**還 render 得出來**,
+    看起來一切正常,直到某個元件在某個情境炸掉,而你完全不知道為什麼。
+    解法:`package.json` 寫死 `"antd": "5.29.3"`（不加 `^`）,別打 `bun add antd`。
+    **版本鎖定表見 2.1.11。**
+12. **`@tanstack/react-query` 漏裝**：它是 Refine 明列的 peer,但**不會被自動安裝**——
+    漏了不會在 install 時報錯,而是**執行期**才爆。照 2.1.11 表把它列進 `package.json`。
 
 ## 附錄 C：Demo 劇本（10 分鐘驗收走位；學員自測與老師抽查同一份）
 
@@ -619,3 +704,4 @@ location /     { try_files $uri /index.html; }        # SPA fallback
 *v3.1（2026-08-25）：技術棧由 Python/Django/SQLite 改版為 TypeScript 全棧（Bun + Elysia + PGlite + Refine + Ant Design）；功能需求（FACT/TASK/PERS/ACC/EXCL）與原版一致，編號不變。*
 *v3.2（2026-08-25）：TECH-12 離線鐵律/ACC-6 斷網驗收；新增附錄 A~D（里程碑評分/踩坑地圖/Demo 劇本/版本對照），與 V2 版同步骨架、各自技術細節。*
 *v3.3（2026-08-25）：資料庫由 **PGlite（嵌入式）改為 PostgreSQL 17 伺服器**（映像 `pgvector/pgvector:0.8.6-pg17`，Compose `db` 服務）——理由與實戰取捨見 2.1.5；連動更新 TECH-3/4/5/7/12、2.1.1 架構、2.1.2 選型、2.1.3 結構、2.1.6 測試隔離（每檔一個 schema）、2.1.9 部署（三服務＋healthcheck＋離線四件套）、ACC-7、附錄 A M1/M4、附錄 B 坑 2/6/9/10、附錄 D；新增 2.1.10 未來擴充路線（ETL→資料倉儲、pgvector、WrenAI；**不列入驗收**）。功能需求（FACT/TASK/PERS/ACC/EXCL）編號不變。*
+*v3.4（2026-08-25）：新增 **2.1.11 版本鎖定表**（Bun 1.4.0 / Elysia 1.4.29 / pg 8.23.0 / zod 3.25.76 / TS 5.9.3 / React 18.3.1 / antd 5.29.3 / Refine 4.58 / Vite 6.4.3）——以既有生產專案的版本線為基準,經 2026-08-25 實測核實（後端 7/7、前端 2/2 測試通過,前後端 tsc 0 error,vite build 成功）;DB 驅動由 postgres.js 改為 **pg**（顯式連線池,教學考量）;TECH-1 鎖版;2.1.2 選型表補版本;附錄 B 新增坑 11（antd peer 靜默不相容）與坑 12（react-query peer 漏裝）。功能需求編號不變。*

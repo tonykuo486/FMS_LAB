@@ -4,7 +4,8 @@
 > 目錄裡沒有任何實作程式碼——`backend/`、`frontend/`、`schema.sql`、`Dockerfile`
 > 全部由**你**依 [`docs/SRS.md`](docs/SRS.md) 產出。這就是本次專題的作業內容。
 
-**技術棧**：TypeScript（`strict`）／Bun／Elysia／**PostgreSQL 17**／Refine + Ant Design／Vite
+**技術棧**：TypeScript 5.9.3／Bun 1.4.0／Elysia 1.4.29／**PostgreSQL 17**／React 18 + Refine + antd 5.29.3／Vite 6
+（**完整鎖定版本見 [`docs/SRS.md`](docs/SRS.md) 2.1.11——2026-08-25 實測核實**）
 **必讀**：[`docs/SRS.md`](docs/SRS.md)——第 2 章**每一條編號都是驗收項**。
 
 ---
@@ -27,7 +28,7 @@ vite 5173 → 後端 3000，cookie 要走 vite proxy 同源化才收得到。
 **3. 確認工具鏈。**
 
 ```bash
-bun --version        # 需 Bun ≥1.1（runtime + 套件管理 + 測試器三合一）
+bun --version        # 需 Bun 1.4.0（版本鎖定表見 SRS 2.1.11）
 docker --version     # 資料庫走 Docker,開發期就會用到（TECH-4/13）
 ```
 
@@ -57,7 +58,7 @@ curl -fsSL https://bun.sh/install | bash
 | 你要做的事 | 指令 |
 |---|---|
 | 開專案 | `bun init` |
-| 加依賴 | `bun add elysia postgres` |
+| 加依賴 | `bun add elysia@1.4.29 pg@8.23.0`（**一律寫死版本,見 SRS 2.1.11**） |
 | 加開發依賴 | `bun add -d typescript @biomejs/biome` |
 | 還原環境（照 `bun.lock`） | `bun install` |
 | 離線還原（教室機，TECH-12） | `bun install --offline` |
@@ -68,6 +69,15 @@ curl -fsSL https://bun.sh/install | bash
 
 > **`bun.lock` 要進版控。** 它是「環境可重現」的唯一真相——助教在自己機器上
 > `bun install` 必須還原出和你一模一樣的版本，否則「在我電腦上會動」不算數。
+
+## ⚠ 開工第一件事：版本寫死，別打 `bun add <套件>`
+
+`bun add antd` 會裝到 **antd 6**，但 `@refinedev/antd` 要的是 **antd 5**——
+**Bun 不會報錯，而且它還 render 得出來**，看起來一切正常，直到某個元件莫名炸掉。
+
+照 [`docs/SRS.md`](docs/SRS.md) **2.1.11 版本鎖定表**把 `package.json` 一次寫好
+（**不加 `^`**），再 `bun install`。那張表是 2026-08-25 實際裝起來、跑過測試、
+`tsc` 過、`vite build` 過的組合。
 
 ## 兩個最容易被扣分的地方
 
