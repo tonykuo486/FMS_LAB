@@ -65,4 +65,63 @@ In Planning → Scheduled → Finished 三態；匿名訪客可看公開看板�
 
 ---
 
+## 附：GitHub 上傳與認證程序（2026-08-25 實測核實）
+
+本 repo 就是照以下步驟上傳的——**每一步都實際走過**。學員交付自己的作業 repo 時照抄，
+把帳號換成自己的即可。
+
+### 1. 裝 GitHub CLI（一次性）
+
+```powershell
+winget install --id GitHub.cli --silent --accept-package-agreements --accept-source-agreements
+gh --version    # 實測：2.98.0
+```
+
+### 2. 認證（一次性；唯一需要開瀏覽器的步驟）
+
+```powershell
+gh auth login --hostname github.com --git-protocol https --web
+```
+- 終端機會顯示**一次性代碼**（例：`XXXX-XXXX`）→ 開 https://github.com/login/device
+  → 輸入代碼 → Authorize。
+- 驗證：`gh auth status` 顯示 `✓ Logged in to github.com account <你的帳號>`。
+- token 存在本機 keyring——之後 push/建 repo 都不再問密碼。
+
+### 3. 本地 repo 準備（注意兩個坑）
+
+```bash
+cd <你的專案>
+git init -b main
+git config user.email "<帳號>@users.noreply.github.com"   # ★坑1：公開 repo 別用私人/公司信箱
+git config user.name  "<帳號>"
+# ★坑2：先寫 .gitignore 再 add——node_modules/data/.env/dist 進了歷史就很難清
+git add -A && git commit -m "docs: 初版"
+```
+
+### 4. 建遠端 repo 並推送
+
+```bash
+gh repo create <帳號>/<repo名> --private --source . --remote origin --push
+```
+- 一條指令＝建 repo＋設 remote＋push。作業一律先 `--private`，要公開再：
+  `gh repo edit --visibility public`。
+- 若 repo 已在網頁上建過，會回 `Name already exists`——改用
+  `git remote add origin https://github.com/<帳號>/<repo名>.git && git push -u origin main`。
+- 在網頁建 repo 時**不要勾**任何初始化選項（README/.gitignore/license），
+  否則遠端多出無關 commit，第一次 push 會被拒。
+
+### 5. 核實（推完必做，不是「看起來成功」而是「驗過一致」）
+
+```bash
+git ls-remote origin main     # 遠端 commit hash
+git log --oneline -1          # 本地 commit hash——兩者必須相同
+gh repo view --json visibility,url,defaultBranchRef
+```
+本 repo 實測：遠端 main＝本地 main＝同一 hash、visibility=PRIVATE、分支 main——三項全對才算完成。
+
+> 上傳前最後一關：`grep` 全 repo 掃一遍**不該公開的字串**（公司網域/內網 IP/帳密/客戶名）
+> ——本 repo 上傳前實掃＝零殘留。這一步養成習慣，比事後刪 commit 便宜一萬倍。
+
+---
+
 *文件維護約定：需求或技術棧變動時，同步三處——兩版 `SRS.md` ＋ `docs/V2_V3_對照表.md`。*
