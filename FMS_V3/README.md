@@ -32,39 +32,37 @@ bun --version        # 需 Bun 1.4.0（版本鎖定表見 SRS 2.1.11）
 docker --version     # 資料庫走 Docker,開發期就會用到（TECH-4/13）
 ```
 
-**資料庫不需要在本機安裝。** repo 已附 [`docker-compose.yml`](docker-compose.yml)
-（起手包：PostgreSQL 17 + pgvector、MinIO），三步就有環境：
+**資料庫不需要在本機安裝。** repo 已附 [`infra/`](infra/)（PostgreSQL 17 + pgvector、
+MinIO），**這是你第一天就該做的事**：
 
 ```bash
-cp .env.example .env          # ★把裡面的密碼全部改掉
-docker compose up -d          # 起 db + minio
-docker compose ps             # 兩個都 healthy 才算好
+cd infra
+cp .env.example .env      # ★把裡面的密碼全部改掉
+docker compose up -d
+docker compose ps         # 兩個都 healthy 才算好
 ```
 
-接著建測試用資料庫（SRS 2.1.6：測試禁連正式庫），這步只做一次：
+建測試用資料庫（SRS 2.1.6：測試禁連正式庫），**只做一次**：
 
 ```bash
 docker compose exec db createdb -U fms fms_test
 ```
 
-之後開發時的啟動順序：
+環境起好之後，日常開發是三個終端機：
 
 ```bash
-docker compose up -d                           # ①基礎服務
+cd infra    && docker compose up -d            # ①基礎服務(起一次就好)
 cd backend  && bun run --watch src/index.ts    # ②後端
 cd frontend && bun run dev                     # ③前端
 ```
 
-| 服務 | 位址 | 用途 |
-|---|---|---|
-| PostgreSQL | `localhost:5432` | 資料庫（可用 psql／DBeaver 連進去看） |
-| MinIO 主控台 | http://localhost:9001 | 物件儲存管理介面 |
-| MinIO S3 API | `localhost:9000` | **本次作業用不到**，將來 ETL／檔案上傳用 |
+詳細指令與疑難排解見 [`infra/README.md`](infra/README.md)。
 
-> ⚠ 這份 compose 只有**基礎服務**。SRS 2.1.9 要求的交付形態是**三服務**
-> （加上 backend / frontend），ACC-7 驗收跑的是那一份——要自己補完。
+> ⚠ **`infra/` 不是你的交付物。** ACC-7 驗收要的是**三服務**
+> （`db` + `backend` + `frontend`）的 compose，規格見 SRS 2.1.9——那份要**你自己寫**，
+> 放在專案根目錄。兩份分開：`infra/` 是你開發時用的環境，根目錄那份是交出去的東西。
 
-> **MinIO 現在可以不管它。** 放進起手包是因為將來要做 CSV 原始檔留存、報表匯出、
+> **MinIO 現在可以不管它。** 放進去是因為將來要做 CSV 原始檔留存、報表匯出、
 > ETL 中繼檔時直接可用，而 S3 API 是業界標準（換到 AWS S3 是同一套 SDK）。
 > 嫌它佔資源就 `docker compose up -d db` 只起資料庫。
 
@@ -143,11 +141,11 @@ mkdir fms-v3 && cd fms-v3
 cp -r /path/to/FMS_LAB/FMS_V3/. .     # Windows PowerShell: Copy-Item -Recurse ...\FMS_V3\* .
 ```
 
-複製過來的有 `README.md`、`.gitignore`、`docker-compose.yml`、`.env.example`
-與 `docs/SRS.md`——**沒有任何程式碼是正常的**，其餘全部是你要寫的。
+複製過來的有 `README.md`、`.gitignore`、`infra/`（環境）與 `docs/SRS.md`
+——**沒有任何程式碼是正常的**，其餘全部是你要寫的。
 
-> ★複製後**確認 `.env` 沒有跟著過來**（它不該存在於教材 repo，但你本機跑過就會有）：
-> `ls -a | grep '^\.env$'` 有輸出就先刪掉，等 git init 完再重建。
+> ★複製後**確認 `infra/.env` 沒有跟著過來**（它不該存在於教材 repo，但你本機跑過就會有）：
+> `ls -a infra/ | grep '^\.env$'` 有輸出就先刪掉，等 git init 完再重建。
 
 ### 步驟 2：git init（**注意兩個坑**）
 

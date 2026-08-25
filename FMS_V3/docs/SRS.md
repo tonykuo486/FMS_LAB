@@ -25,8 +25,8 @@
 | **TECH-1**  | 實作語言為 **TypeScript 5.9.3**（`strict: true`），執行環境 **Bun 1.4.0**（runtime + 套件管理 + 測試器三合一）；**版本一律照 2.1.11 鎖定表寫死** |
 | **TECH-2**  | 後端框架：**Elysia**（REST API，路由層以內建 `t`（TypeBox）宣告請求 schema）；前端框架：**Refine + Ant Design**（React 18 + Vite）      |
 | **TECH-3**  | 持久性資料儲存於一個 SQL 資料庫（**PostgreSQL 17**），資料表結構以冪等 SQL（`CREATE TABLE IF NOT EXISTS`）於啟動時建立；schema 變更以**版本化 migration 檔**累加（`db/migrations/NNN_*.sql`），不改舊檔 |
-| **TECH-4**  | 資料庫使用**獨立的 PostgreSQL 伺服器**，以 Docker Compose 提供（映像 `pgvector/pgvector:0.8.6-pg17`＝PG 17 內建 pgvector）；後端經 TCP 以**連線池**（`pg`／node-postgres）存取；資料落在具名 volume，**不放容器層**。開發期不需在本機安裝 PG——`docker compose up -d db` 即得（部署規格見 2.1.9） |
-| **TECH-5**  | **開發期**用開發伺服器：先 `docker compose up -d db` 起資料庫，再 `bun run --watch src/index.ts`（後端）與 `vite`（前端，`/api` 反向代理到後端）；**交付與驗收必須以 Docker Compose 全棧啟動**（見 TECH-13）  |
+| **TECH-4**  | 資料庫使用**獨立的 PostgreSQL 伺服器**，以 Docker Compose 提供（映像 `pgvector/pgvector:0.8.6-pg17`＝PG 17 內建 pgvector）；後端經 TCP 以**連線池**（`pg`／node-postgres）存取；資料落在具名 volume，**不放容器層**。開發期不需在本機安裝 PG——repo 附 `infra/`，`cd infra && docker compose up -d` 即得（部署規格見 2.1.9） |
+| **TECH-5**  | **開發期**用開發伺服器：先 `cd infra && docker compose up -d` 起資料庫，再 `bun run --watch src/index.ts`（後端）與 `vite`（前端，`/api` 反向代理到後端）；**交付與驗收必須以 Docker Compose 全棧啟動**（見 TECH-13）  |
 | **TECH-6**  | 使用者介面以 React + Ant Design 元件實作（由元件庫產出語法正確的 HTML，不手寫裸 HTML/CSS）                                              |
 | **TECH-7**  | 程式碼必須能在 Windows、macOS 與 Linux 上執行（Bun、Vite 跨平台無原生編譯依賴；PostgreSQL 統一走 Docker，三平台行為一致）                  |
 | **TECH-8**  | 程式碼必須以單元測試（**`bun test`**）加以保護；排程衝突檢核等核心業務邏輯須有獨立測試                                                   |
@@ -102,8 +102,11 @@ fms/
 │   ├── package.json
 │   └── vite.config.ts        # /api proxy → http://localhost:3000
 ├── testdata/                 # ACC-1 主測試集 + ACC-4 千筆任務集（CSV）
-├── docker-compose.yml        # ★repo 已附起手包(db + minio);交付時補成 db/backend/frontend
-├── .env.example              # ★repo 已附:連線參數範本（真 .env 不進版控）
+├── infra/                    # ★repo 已附:開發期環境(不是交付物)
+│   ├── docker-compose.yml    #   db(PG 17 + pgvector) + minio
+│   ├── .env.example          #   連線參數範本（真 .env 不進版控）
+│   └── README.md             #   起手指令與疑難排解
+├── docker-compose.yml        # ★由你撰寫:交付形態三服務(db + backend + frontend),ACC-7 驗這份
 ├── .github/workflows/ci.yml  # CI 起 postgres service container
 └── README.md                 # 上手指令：起 db → bun install ×2 → 兩個 dev → 匯入測試集
 ```
@@ -346,10 +349,13 @@ export const publicWeekTasks: QueryTemplate = {
 
 #### 2.1.9 Docker Compose 部署規格（TECH-13）
 
-> **開發期起手包已附在 repo：[`../docker-compose.yml`](../docker-compose.yml)**
-> ——只含 `db`（PostgreSQL 17 + pgvector）與 `minio`，讓你 `docker compose up -d`
-> 就有資料庫可用，不必手動裝 PG。**但那份不是交付形態**：ACC-7 驗收要的是本節的
-> 三服務版（含 backend / frontend），得由你自己補完。
+> **開發期環境已附在 repo：[`../infra/`](../infra/)** ——只含 `db`（PostgreSQL 17 +
+> pgvector）與 `minio`，`cd infra && docker compose up -d` 就有資料庫可用，
+> 不必手動裝 PG。
+>
+> **但 `infra/` 不是交付形態。** 本節規格的三服務 compose（含 backend / frontend）
+> 要**你自己寫在專案根目錄**，ACC-7 驗收跑的是那一份。兩份刻意分開：開發期天天改
+> backend 不該連帶重建資料庫；驗收時要的則是「一鍵全起」。
 
 單機（Docker Desktop）、**三服務**：`db`（PostgreSQL）＋`backend`（Bun/Elysia）＋
 `frontend`（nginx 服務靜態檔並反代 `/api`）。只有 frontend 對外露 port。
@@ -738,4 +744,4 @@ React 18 + Refine 4 + antd 5 是目前教學資源覆蓋最厚的組合。**版�
 *v3.2（2026-08-25）：TECH-12 離線鐵律/ACC-6 斷網驗收；新增附錄 A~D（里程碑評分/踩坑地圖/Demo 劇本/版本對照），與 V2 版同步骨架、各自技術細節。*
 *v3.3（2026-08-25）：資料庫由 **PGlite（嵌入式）改為 PostgreSQL 17 伺服器**（映像 `pgvector/pgvector:0.8.6-pg17`，Compose `db` 服務）——理由與實戰取捨見 2.1.5；連動更新 TECH-3/4/5/7/12、2.1.1 架構、2.1.2 選型、2.1.3 結構、2.1.6 測試隔離（每檔一個 schema）、2.1.9 部署（三服務＋healthcheck＋離線四件套）、ACC-7、附錄 A M1/M4、附錄 B 坑 2/6/9/10、附錄 D；新增 2.1.10 未來擴充路線（ETL→資料倉儲、pgvector、WrenAI；**不列入驗收**）。功能需求（FACT/TASK/PERS/ACC/EXCL）編號不變。*
 *v3.4（2026-08-25）：新增 **2.1.11 版本鎖定表**（Bun 1.4.0 / Elysia 1.4.29 / pg 8.23.0 / zod 3.25.76 / TS 5.9.3 / React 18.3.1 / antd 5.29.3 / Refine 4.58 / Vite 6.4.3）——以既有生產專案的版本線為基準,經 2026-08-25 實測核實（後端 7/7、前端 2/2 測試通過,前後端 tsc 0 error,vite build 成功）;DB 驅動由 postgres.js 改為 **pg**（顯式連線池,教學考量）;TECH-1 鎖版;2.1.2 選型表補版本;附錄 B 新增坑 11（antd peer 靜默不相容）與坑 12（react-query peer 漏裝）。功能需求編號不變。*
-*v3.5（2026-08-25）：repo 附**開發環境起手包** `docker-compose.yml`（db：PostgreSQL 17 + pgvector;minio：S3 相容儲存,為將來 ETL/檔案上傳預留）與 `.env.example`,學員 `docker compose up -d` 即有資料庫,不必手動安裝;2.1.9 標明起手包與交付形態（三服務）之別;2.1.3 結構補 `db/init/`;2.1.4 新增「為何不採資料表驅動 RBAC」的取捨說明（列為加分題,鐵律仍是前端擋 UX、後端擋安全）。功能需求編號不變。*
+*v3.5（2026-08-25）：repo 附**開發期環境** `infra/`（`docker-compose.yml`：db＝PostgreSQL 17 + pgvector、minio＝S3 相容儲存,為將來 ETL/檔案上傳預留;附 `.env.example` 與 `README.md`）,學員 `cd infra && docker compose up -d` 即有資料庫,不必手動安裝——**`infra/` 是環境不是交付物**,交付形態的三服務 compose 由學員自寫於專案根目錄（ACC-7 驗那一份）,兩份分開放;2.1.3 結構補 `infra/` 與 `db/init/`;2.1.4 新增「為何不採資料表驅動 RBAC」的取捨說明（列為加分題,鐵律仍是前端擋 UX、後端擋安全）。功能需求編號不變。*

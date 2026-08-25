@@ -1,16 +1,18 @@
-# FMS_V3 教學環境 — 學員起手包
+# FMS_V3 基礎設施(infra) — 開發期外部服務,學員第一天就能起來
 #
-# 用途:一次起好「開發期需要的外部服務」,讓學員專心寫程式,不必手動裝資料庫。
 #   db     PostgreSQL 17 + pgvector  (SRS TECH-4 / 2.1.5)
 #   minio  S3 相容物件儲存           (本次作業用不到,為將來 ETL/檔案上傳預留)
 #
-# ⚠ 這份只含「基礎設施」。backend / frontend 兩個服務由你自己補
-#   (SRS 2.1.9 有完整的三服務規格,交付驗收 ACC-7 要跑的是那一份)。
+# ★ 這份「不是」你的交付物,是給你用的環境。
+#   你自己的 backend / frontend 服務,請在**專案根目錄**另外寫一份
+#   docker-compose.yml(規格見 SRS 2.1.9;ACC-7 驗收跑的是那一份)。
+#   兩份分開放,才不會改一改把環境跟交付物混在一起。
 #
-# 三步上手:
-#   1. cp .env.example .env   然後把密碼改掉
-#   2. docker compose up -d
-#   3. docker compose ps      三個 healthy 才算起好
+# 三步上手(★在 infra/ 目錄下執行):
+#   cd infra
+#   cp .env.example .env      # 然後把密碼改掉
+#   docker compose up -d
+#   docker compose ps         # 兩個都 healthy 才算起好
 #
 # 停止:docker compose down      (資料保留)
 # 清空:docker compose down -v   (★連資料一起刪,想清楚再按)
@@ -36,8 +38,10 @@ services:
     volumes:
       # 具名 volume:容器重建資料不丟(ACC-7 會驗)
       - pgdata:/var/lib/postgresql/data
-      # 建表 SQL 放這裡會在「資料庫第一次建立時」自動執行(之後不再跑)
-      - ./backend/src/db/init:/docker-entrypoint-initdb.d:ro
+      # 建表 SQL 放這裡會在「資料庫第一次建立時」自動執行(之後不再跑)。
+      # ★路徑相對於本檔(infra/),往上一層找 backend/
+      # 尚未建立 backend/ 之前這行請先註解掉,否則 compose 會報路徑不存在。
+      - ../backend/src/db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       # ★等「PG 真的可接受連線」,不是「容器起來了」——附錄 B 坑 9
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fms} -d ${POSTGRES_DB:-fms}"]
