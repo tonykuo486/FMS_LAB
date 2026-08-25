@@ -12,11 +12,15 @@
 ```
 FMS_LAB/
 ├── README.md                 ← 本檔（入口導覽）
+├── .gitignore
 ├── docs/
 │   └── V2_V3_對照表.md       ← 兩版完整對照（講師備課/學員課後對讀）
-├── FMS_V2/
-│   └── docs/SRS.md           ← V2 需求規格 v2.2：Python + Django + SQLite + AdminLTE
-└── FMS_V3/                   ← 獨立 git repo（可推 GitHub 發給學員）
+├── FMS_V2/                   ← V2 教材（Python 路線）
+│   ├── README.md             ← 開工指引＋轉交自己 GitHub 的步驟
+│   └── docs/SRS.md           ← V2 需求規格 v2.3：Python + Django + SQLite + AdminLTE
+└── FMS_V3/                   ← V3 教材（TypeScript 路線；原獨立 repo，已併入本 repo）
+    ├── README.md             ← 開工指引＋轉交自己 GitHub 的步驟
+    ├── .gitignore
     └── docs/SRS.md           ← V3 需求規格 v3.2：Bun + Elysia + PGlite + Refine + AntD
 ```
 
@@ -50,12 +54,14 @@ In Planning → Scheduled → Finished 三態；匿名訪客可看公開看板�
 4. 進度照 SRS **附錄 A 里程碑（M1~M6）**；驗收照 **附錄 C Demo 劇本**（兩版同一份，10 分鐘走位）。
 
 **學員**：
+0. **先讀你那版的 README**（[V2](FMS_V2/README.md) ／ [V3](FMS_V3/README.md)）——
+   工具鏈確認、指令速查，以及**把作業轉交到你自己 GitHub** 的完整步驟都在那。
 1. 精讀你那版的 `docs/SRS.md` 第 2 章——**每一條編號都是驗收項**。
 2. 開工前先讀 **附錄 B 踩坑地圖**（ISO 第 53 週、排程 race、CSV 編碼是必撞的三個）。
 3. 依 M1~M6 交付，commit 歷史要看得出里程碑節奏（最後一天一包 zip 直接扣分）。
 4. 自測用附錄 C 劇本走一遍——老師抽查用的是同一份。
 
-## 三條不變的鐵律（兩版通用，驗收必查）
+## 四條不變的鐵律（兩版通用，驗收必查）
 
 1. **後端守衛才是安全**——前端/模板擋掉按鈕不算數，每個端點都要有自己的權限檢查。
 2. **資料庫約束才是底**——排程衝突的應用層檢查有 race，unique/exclude 約束保底。

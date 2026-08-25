@@ -1,6 +1,6 @@
 # 需求規格書（Lastenheft）：工廠管理系統（Factory Management System）
 
-**程式設計專題 WI（Programming Project WI）** ｜ v2.1（2026-08-25）：UI 改採 **AdminLTE**
+**程式設計專題 WI（Programming Project WI）** ｜ v2.3（2026-08-25）：UI 採 **AdminLTE**；套件管理採 **uv**
 
 
 ## 1. 概述（Overview）
@@ -19,7 +19,7 @@
 
 | 編號              | 內容                                                                                                                                  |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| **TECH-1**  | 實作語言為 Python 3                                                                                                                   |
+| **TECH-1**  | 實作語言為 Python 3；**套件與虛擬環境一律以 [uv](https://docs.astral.sh/uv/) 管理**（`uv sync` 還原環境、`uv run` 執行；不使用裸 pip/venv） |
 | **TECH-2**  | Web 框架：Django                                                                                                                      |
 | **TECH-3**  | 持久性資料儲存於一個 SQL 資料庫                                                                                                       |
 | **TECH-4**  | 可以使用 Django 提供的 SQLite 資料庫；不需要外部資料庫                                                                                |
@@ -30,8 +30,8 @@
 | **TECH-9**  | 所有使用者輸入都必須經過驗證，以防範 CSRF、程式碼注入（code injection）與未授權存取                                                   |
 | **TECH-10** | 語意上不正確的使用者輸入必須以清楚的錯誤訊息加以拒絕                                                                                  |
 | **TECH-11** | 系統必須具備可調整性（adaptable）；產品（products）、製程（processes）、證照（certifications）與據點（sites）不可硬編碼（hard-coded） |
-| **TECH-12** | **完全離線可用，禁用任何 CDN**：所有前端資產（AdminLTE、Bootstrap、jQuery、圖示字型）一律 vendor 進 repo（`static/lib/`）；字型用系統字型堆疊（system font stack），**不得引用 Google Fonts**；Python 套件以 `requirements.txt` + 本地 wheelhouse 離線安裝（`pip download -d wheels/` → `pip install --no-index --find-links wheels/`） |
-| **TECH-13** | **必須能以 Docker Compose 部署於單機**（Docker Desktop）：repo 附 `Dockerfile` + `docker-compose.yml`，`docker compose up -d` 一鍵啟動即可使用；**build 過程零外網**（依賴走 TECH-12 的 wheelhouse），基底映像以 `docker save`/`docker load` 預載（部署規格見 2.1.2） |
+| **TECH-12** | **完全離線可用，禁用任何 CDN**：所有前端資產（AdminLTE、Bootstrap、jQuery、圖示字型）一律 vendor 進 repo（`static/lib/`）；字型用系統字型堆疊（system font stack），**不得引用 Google Fonts**；Python 套件以 **uv** 離線安裝：`pyproject.toml` + **`uv.lock` 為唯一真相**，預先 `uv export --format requirements-txt > requirements.txt` 並 `uv pip download -d wheels/ -r requirements.txt` 備妥本地 wheelhouse，教室機 `uv pip install --offline --no-index --find-links wheels/ -r requirements.txt` |
+| **TECH-13** | **必須能以 Docker Compose 部署於單機**（Docker Desktop）：repo 附 `Dockerfile` + `docker-compose.yml`，`docker compose up -d` 一鍵啟動即可使用；**build 過程零外網**（依賴走 TECH-12 的 uv wheelhouse），基底映像以 `docker save`/`docker load` 預載（部署規格見 2.1.2） |
 
 #### 2.1.1 UI 版型規範（AdminLTE）
 
@@ -69,20 +69,27 @@ services:
 ```
 
 ```dockerfile
-# Dockerfile（離線 build：不打 PyPI）
+# Dockerfile（離線 build：不打 PyPI；uv 由官方映像 COPY 進來，不走網路安裝）
 FROM python:3.12-slim
+# uv 二進位（單一執行檔，無相依）——教室機需先 docker load 這個映像
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 WORKDIR /app
 COPY wheels/ wheels/
-COPY requirements.txt .
-RUN pip install --no-index --find-links wheels/ -r requirements.txt
+COPY pyproject.toml uv.lock requirements.txt ./
+# --offline：確保 build 期零外網;命中不了 wheelhouse 就讓它失敗,不要偷連 PyPI
+RUN uv pip install --system --offline --no-index --find-links wheels/ -r requirements.txt
 COPY . .
 ```
 
 **規範**：
 1. `settings.py` 的資料庫路徑指向 `/app/data/db.sqlite3`（volume 內），**禁**放容器層。
-2. **離線三件套**：基底映像預載（`docker save python:3.12-slim -o py312.tar` →
-   教室機 `docker load`）＋ wheelhouse 進 build context ＋ `static/lib/` 已 vendor
-   ——三者齊備即可斷網 `docker compose up --build`。
+2. **離線三件套**：基底映像預載（`docker save python:3.12-slim ghcr.io/astral-sh/uv:latest
+   -o base.tar` → 教室機 `docker load`）＋ **uv wheelhouse**（`wheels/` 進 build context，
+   由 `uv.lock` 匯出）＋ `static/lib/` 已 vendor——三者齊備即可斷網
+   `docker compose up --build`。
+   > 為何用 uv 而非 pip：`uv.lock` 鎖定**跨平台可重現**的完整相依樹（含 hash），
+   > 三十位學員機器還原出的環境一模一樣;`uv sync` 亦比 pip 快一個量級，
+   > 教室現場等待時間差很有感。
 3. 課程接受 `runserver` 於容器內作為交付形態（單機教學用）；改 gunicorn 列加分項。
 4. 驗收指令即文件：README 須含「`docker load` → `docker compose up -d` → 開
    `http://localhost:8000`」三步，照打即通（ACC-7）。
@@ -260,3 +267,4 @@ COPY . .
 
 *v2.1（2026-08-25）：TECH-6/ACC-5 定案 AdminLTE + 2.1.1 UI 版型規範。*
 *v2.2（2026-08-25）：TECH-12 離線鐵律/ACC-6 斷網驗收；新增附錄 A~D（里程碑評分/踩坑地圖/Demo 劇本/版本對照）。需求編號不變。*
+*v2.3（2026-08-25）：Python 套件管理改採 **uv**（TECH-1/12/13 與 2.1.2 Dockerfile 同步）；功能需求（FACT/TASK/PERS/ACC/EXCL）編號不變。*
