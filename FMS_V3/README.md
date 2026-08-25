@@ -28,7 +28,7 @@
 | §8 | UI 設計規範（Steel Blue） | 色票寫死在 `theme.ts`，禁散寫 |
 | §11 | 版本鎖定表 | 照抄 `package.json`，**別自己 `bun add`** |
 
-**2. 先讀附錄 B 踩坑地圖。** 共通三坑（ISO 第 53 週／排程 race／CSV 編碼）之外，
+**2. 先讀 [GUIDE.md](docs/GUIDE.md) §2 踩坑地圖。** 共通三坑（ISO 第 53 週／排程 race／CSV 編碼）之外，
 TS 全棧還有四個專屬坑——**cookie 跨埠**（坑 7）幾乎每個人都會撞：
 vite 5173 → 後端 3000，cookie 要走 vite proxy 同源化才收得到。
 
@@ -127,7 +127,7 @@ API 從頭到尾不含真名。
 
 ## 交付門檻（照這個順序自測）
 
-1. **附錄 A 里程碑 M1~M6** 逐項完成——commit 歷史要看得出節奏（最後一天一包 zip 直接扣分）。
+1. **[GUIDE.md](docs/GUIDE.md) §1 里程碑 M1~M6** 逐項完成——commit 歷史要看得出節奏（最後一天一包 zip 直接扣分）。
 2. **附錄 C Demo 劇本**自己走一遍——老師抽查用的是同一份，10 分鐘走位。
 3. **CI 三綠燈**：`bun install` → `tsc --noEmit` → `bun test` 全綠。
 4. **ACC-6 斷網驗收**：拔網路線／關 Wi-Fi，全功能仍可展示，DevTools Network 零外部請求。

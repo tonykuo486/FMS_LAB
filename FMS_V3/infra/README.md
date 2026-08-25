@@ -3,7 +3,7 @@
 > ✅ **2026-08-25 實測通過**（Docker 29.5.3 / Compose v5.1.4 on WSL2 Ubuntu）：
 > `docker compose up -d` → db 與 minio 皆 `healthy`、PostgreSQL 17.11、
 > pgvector 0.8.6 與 btree_gist 1.7 皆可用、`down`/`up` 後資料保留、
-> `db/init/` 自動執行、SRS 2.1.5 的 `EXCLUDE` 約束與並行 race 實測符合預期。
+> `db/init/` 自動執行、[SDD §5](../docs/SDD.md) 的 `EXCLUDE` 約束與並行 race 實測符合預期。
 > 詳見本檔末「實測紀錄」。
 
 **這個目錄不是你的交付物，是給你用的環境。**
@@ -11,7 +11,7 @@
 
 | 服務 | 內容 | 本次作業 |
 |---|---|---|
-| `db` | PostgreSQL 17 + pgvector | **必要**（SRS TECH-4 / 2.1.5） |
+| `db` | PostgreSQL 17 + pgvector | **必要**（SRS TECH-4／[SDD §5](../docs/SDD.md)） |
 | `minio` | S3 相容物件儲存 | **用不到**，為將來 ETL／檔案上傳預留 |
 
 ## 起手（第一天就做這個）
@@ -23,7 +23,7 @@ docker compose up -d
 docker compose ps         # 兩個都 healthy 才算起好
 ```
 
-建測試資料庫（SRS 2.1.6：測試禁連正式庫），**只做一次**：
+建測試資料庫（[SDD §6](../docs/SDD.md)：測試禁連正式庫），**只做一次**：
 
 ```bash
 docker compose exec db createdb -U fms fms_test
@@ -86,7 +86,7 @@ DBeaver 選 **Database ▸ New Database Connection ▸ PostgreSQL**，填：
 ### 兩個實用技巧
 
 **① 測試庫另開一條連線。** `fms`（正式）與 `fms_test`（測試）各建一條，
-名字改清楚。SRS 2.1.6 規定測試禁連正式庫——連線名字取好，手滑的機率會低很多。
+名字改清楚。[SDD §6](../docs/SDD.md) 規定測試禁連正式庫——連線名字取好，手滑的機率會低很多。
 
 **② 看得到 `EXCLUDE` 約束。** 展開 `Tables ▸ tasks ▸ Constraints`，
 你加的 `no_overlap_work_station` 會列在那。做 M4 排程衝突時，
@@ -94,7 +94,7 @@ DBeaver 選 **Database ▸ New Database Connection ▸ PostgreSQL**，填：
 可以**親眼看到一條成功、一條被擋回 `23P01`**——比讀文件有感。
 
 > pgvector 是本映像內建的，但要用才 `CREATE EXTENSION vector;`（本次作業用不到，
-> 見 SRS 2.1.10）。
+> 見 [SDD §10](../docs/SDD.md)）。
 
 ## 常用指令
 
@@ -111,7 +111,7 @@ DBeaver 選 **Database ▸ New Database Connection ▸ PostgreSQL**，填：
 ## ⚠ 這份跟你要交的 compose 是兩回事
 
 ACC-7 驗收要的是**三服務**（`db` + `backend` + `frontend`），規格見
-[`../docs/SRS.md`](../docs/SRS.md) **2.1.9**——那一份要**你自己寫**，放在專案根目錄。
+[`../docs/SDD.md`](../docs/SDD.md) **§9**——那一份要**你自己寫**，放在專案根目錄。
 
 ```
 fms-v3/
@@ -132,7 +132,7 @@ fms-v3/
 （2026-08-25 實測）。空的 init 目錄不影響資料庫啟動。
 
 **backend 連不上資料庫** —— 先確認 `docker compose ps` 是 `healthy`（不是 `starting`）。
-PG 容器「起來了」不等於「可接受連線」，這是 SRS 附錄 B 坑 9。
+PG 容器「起來了」不等於「可接受連線」，這是 [GUIDE §2 坑 9](../docs/GUIDE.md)。
 
 **port 5432 被占用** —— 本機已經裝過 PostgreSQL。改 `.env` 的 `POSTGRES_PORT`（例如 `5433`），
 記得 `PGPORT` 也要一起改。
@@ -160,7 +160,7 @@ PG 容器「起來了」不等於「可接受連線」，這是 SRS 附錄 B 坑
 | 8 | `db/init/*.sql` 首次建庫自動執行 | **成功** |
 | 9 | `backend/` 不存在時掛載 | **不會報錯**，Docker 自動建空目錄 |
 
-**SRS 2.1.5 的 `EXCLUDE USING gist` 約束**（本課教學核心）逐項實測：
+**[SDD §5](../docs/SDD.md) 的 `EXCLUDE USING gist` 約束**（本課教學核心）逐項實測：
 
 | 情境 | 預期 | 實測 |
 |---|---|---|

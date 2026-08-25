@@ -37,7 +37,7 @@ FMS_LAB/
 |---|---|---|
 | 路線 | 約定優於配置（伺服端渲染） | 顯式契約（型別安全全棧） |
 | 棧 | Python 3 / Django / SQLite / AdminLTE | TypeScript / Bun / Elysia / PostgreSQL 17 / Refine + Ant Design |
-| 版本 | uv 管理（SRS 2.1.2） | **鎖定表 SRS 2.1.11**（2026-08-25 實測核實） |
+| 版本 | uv 管理（[V2 SDD §2](FMS_V2/docs/SDD.md)） | **鎖定表 [V3 SDD §11](FMS_V3/docs/SDD.md)**（2026-08-25 實測核實） |
 | 適合 | 第一個 Web 專案的初學者 | 已懂 HTTP/SQL，要學前後端分離 |
 | 規格 | [SRS](FMS_V2/docs/SRS.md)／[SDD](FMS_V2/docs/SDD.md)／[GUIDE](FMS_V2/docs/GUIDE.md) | [SRS](FMS_V3/docs/SRS.md)／[SDD](FMS_V3/docs/SDD.md)／[GUIDE](FMS_V3/docs/GUIDE.md) |
 
@@ -64,13 +64,13 @@ In Planning → Scheduled → Finished 三態；匿名訪客可看公開看板�
 3. 開課前照各版 SRS 的 **TECH-12/TECH-13** 準備離線環境（V2：wheelhouse＋`static/lib/`
    資產包；V3：bun offline 快取；**兩版共通**：Docker Desktop＋基底映像 `docker save` 預載包），
    每台機器**斷網 smoke test** 一遍（含 `docker compose up --build`）。
-4. 進度照 SRS **附錄 A 里程碑（M1~M6）**；驗收照 **附錄 C Demo 劇本**（兩版同一份，10 分鐘走位）。
+4. 進度照 **GUIDE.md §1 里程碑（M1~M6）**；驗收照 **SRS.md 附錄 Demo 劇本**（兩版同一份，10 分鐘走位）。
 
 **學員**：
 0. **先讀你那版的 README**（[V2](FMS_V2/README.md) ／ [V3](FMS_V3/README.md)）——
    工具鏈確認、指令速查，以及**把作業轉交到你自己 GitHub** 的完整步驟都在那。
 1. 精讀你那版的 `docs/SRS.md` 第 2 章——**每一條編號都是驗收項**。
-2. 開工前先讀 **附錄 B 踩坑地圖**（ISO 第 53 週、排程 race、CSV 編碼是必撞的三個）。
+2. 開工前先讀 **GUIDE.md §2 踩坑地圖**（ISO 第 53 週、排程 race、CSV 編碼是必撞的三個）。
 3. 依 M1~M6 交付，commit 歷史要看得出里程碑節奏（最後一天一包 zip 直接扣分）。
 4. 自測用附錄 C 劇本走一遍——老師抽查用的是同一份。
 
