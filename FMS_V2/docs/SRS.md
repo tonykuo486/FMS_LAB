@@ -255,9 +255,9 @@ COPY . .
 | 語言/框架 | Python + Django（伺服端渲染） | TypeScript + Bun + Elysia + Refine（SPA） |
 | UI | AdminLTE（Bootstrap，template 渲染） | Ant Design（React 元件） |
 | 管理介面 | Django admin（**約定即得**） | Refine resources + accessControlProvider（**顯式接**） |
-| 資料庫 | SQLite（Django ORM） | PGlite（嵌入式 Postgres，SQL 模板） |
+| 資料庫 | SQLite（Django ORM） | **PostgreSQL 17 伺服器**（Docker,連線池 + SQL 模板） |
 | 驗證 | Django Forms / `clean()` | Elysia `t` + Zod 雙層 |
-| 測試 | Django `TestCase` | `bun test` + in-memory PGlite |
+| 測試 | Django `TestCase` | `bun test` + 每檔獨立 PG schema |
 | 教學重點 | MVC、ORM、約定優於配置 | 型別安全全棧、REST 契約、顯式權限模型 |
 
 > 兩版功能需求（FACT/TASK/PERS/ACC）編號完全相同——上完 V2 再看 V3，

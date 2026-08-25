@@ -1,6 +1,6 @@
 # 需求規格書（Lastenheft）：工廠管理系統（Factory Management System）
 
-**程式設計專題 WI（Programming Project WI）** ｜ v3.1（2026-08-25）：TypeScript 全棧版
+**程式設計專題 WI（Programming Project WI）** ｜ v3.3（2026-08-25）：TypeScript 全棧版（PostgreSQL 17）
 
 ---
 
@@ -24,16 +24,16 @@
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | **TECH-1**  | 實作語言為 **TypeScript**（`strict: true`），執行環境 **Bun**（runtime + 套件管理 + 測試器三合一）                                      |
 | **TECH-2**  | 後端框架：**Elysia**（REST API，路由層以內建 `t`（TypeBox）宣告請求 schema）；前端框架：**Refine + Ant Design**（React 18 + Vite）      |
-| **TECH-3**  | 持久性資料儲存於一個 SQL 資料庫（PostgreSQL 語法），資料表結構以冪等 SQL（`CREATE TABLE IF NOT EXISTS`）於啟動時建立                    |
-| **TECH-4**  | 資料庫使用 **PGlite**（`@electric-sql/pglite`，嵌入式 WASM Postgres）：資料落地單一目錄（`./data/fms`），**不需要安裝任何外部資料庫服務** |
-| **TECH-5**  | **開發期**用開發伺服器：後端 `bun run --watch src/index.ts`、前端 `vite` dev server（`/api` 反向代理到後端）；**交付與驗收必須以 Docker Compose 啟動**（見 TECH-13）  |
+| **TECH-3**  | 持久性資料儲存於一個 SQL 資料庫（**PostgreSQL 17**），資料表結構以冪等 SQL（`CREATE TABLE IF NOT EXISTS`）於啟動時建立；schema 變更以**版本化 migration 檔**累加（`db/migrations/NNN_*.sql`），不改舊檔 |
+| **TECH-4**  | 資料庫使用**獨立的 PostgreSQL 伺服器**，以 Docker Compose 提供（映像 `pgvector/pgvector:0.8.6-pg17`＝PG 17 內建 pgvector）；後端經 TCP 以**連線池**（`postgres.js`）存取；資料落在具名 volume，**不放容器層**。開發期不需在本機安裝 PG——`docker compose up -d db` 即得（部署規格見 2.1.9） |
+| **TECH-5**  | **開發期**用開發伺服器：先 `docker compose up -d db` 起資料庫，再 `bun run --watch src/index.ts`（後端）與 `vite`（前端，`/api` 反向代理到後端）；**交付與驗收必須以 Docker Compose 全棧啟動**（見 TECH-13）  |
 | **TECH-6**  | 使用者介面以 React + Ant Design 元件實作（由元件庫產出語法正確的 HTML，不手寫裸 HTML/CSS）                                              |
-| **TECH-7**  | 程式碼必須能在 Windows、macOS 與 Linux 上執行（Bun、PGlite、Vite 三者皆跨平台，無原生編譯依賴）                                          |
+| **TECH-7**  | 程式碼必須能在 Windows、macOS 與 Linux 上執行（Bun、Vite 跨平台無原生編譯依賴；PostgreSQL 統一走 Docker，三平台行為一致）                  |
 | **TECH-8**  | 程式碼必須以單元測試（**`bun test`**）加以保護；排程衝突檢核等核心業務邏輯須有獨立測試                                                   |
 | **TECH-9**  | 所有使用者輸入必須驗證：路由層 Elysia `t` schema + 服務層 **Zod**；SQL 一律**參數化**（`$1, $2…`，禁字串拼接）；認證採 **JWT（`jose`）存 httpOnly cookie（`SameSite=Lax` 防 CSRF）**；每個端點掛角色守衛防未授權存取 |
 | **TECH-10** | 語意上不正確的使用者輸入必須以清楚的錯誤訊息加以拒絕（HTTP 400 + 人話訊息，不可回傳 stack trace）                                        |
 | **TECH-11** | 系統必須具備可調整性（adaptable）；產品（products）、製程（processes）、證照（certifications）與據點（sites）不可硬編碼（hard-coded） |
-| **TECH-12** | **完全離線可用，禁用任何 CDN**：所有依賴皆為 npm 套件由 Vite 打包（AntD 樣式與 icons 從套件 import，天生無 CDN）；字型用系統字型堆疊，**不得引用 Google Fonts / 外部字型**；教室部署以預抓好的 Bun 離線快取＋lockfile 還原（`bun install --offline`） |
+| **TECH-12** | **完全離線可用，禁用任何 CDN**：所有依賴皆為 npm 套件由 Vite 打包（AntD 樣式與 icons 從套件 import，天生無 CDN）；字型用系統字型堆疊，**不得引用 Google Fonts / 外部字型**；教室部署以預抓好的 Bun 離線快取＋lockfile 還原（`bun install --offline`）；**PostgreSQL 映像須預先 `docker save` 帶進教室**（離線四件套見 2.1.9） |
 | **TECH-13** | **必須能以 Docker Compose 部署於單機**（Docker Desktop）：repo 附前後端 `Dockerfile` + `docker-compose.yml`，`docker compose up -d` 一鍵啟動即可使用；**build 過程零外網**（依賴走 TECH-12 的離線快取），基底映像以 `docker save`/`docker load` 預載（部署規格見 2.1.9） |
 
 #### 2.1.1 系統架構
@@ -45,9 +45,11 @@
 Bun + Elysia 後端（3000）
    ├─ routes/     路由層：t schema 驗參 + JWT 解析 + 角色守衛
    ├─ services/   業務層：排程衝突檢核、證照/能力匹配、狀態機（In Planning→Scheduled→Finished）
-   └─ db/         資料層：templates/（具名 SQL 模板：name + sql + params schema）+ PGlite client
-   ▼
-PGlite（嵌入式 Postgres；正式資料 ./data/fms，單元測試用 in-memory 實例）
+   └─ db/         資料層：templates/（具名 SQL 模板：name + sql + params schema）
+                        + pool.ts（postgres.js 連線池）+ migrations/
+   ▼  TCP 5432（連線池）
+PostgreSQL 17 + pgvector（Docker 服務 `db`；資料在具名 volume `fms_pgdata`）
+   └─ 測試用同一台 PG,每個測試檔開自己的 schema（見 2.1.6）
 ```
 
 分層鐵律：**路由不寫業務邏輯、業務層不碰 HTTP、SQL 只存在於 `db/templates/`**。
@@ -62,7 +64,8 @@ PGlite（嵌入式 Postgres；正式資料 ./data/fms，單元測試用 in-memor
 | 前端框架 | **@refinedev/core** + **@refinedev/antd** | 資源導向 CRUD 框架（詳 2.1.4） |
 | UI 元件 | **antd** 5、**@ant-design/icons** | 表格/表單/週曆檢視全用現成元件 |
 | 建置 | **vite** + **@vitejs/plugin-react** | 前端 dev server 與打包 |
-| 資料庫 | **@electric-sql/pglite** | 嵌入式 Postgres（詳 2.1.5） |
+| 資料庫 | **PostgreSQL 17**（映像 `pgvector/pgvector:0.8.6-pg17`） | 真 PG 伺服器,內建 pgvector（詳 2.1.5） |
+| DB 驅動 / 連線池 | **postgres.js**（`postgres`） | TCP 連線池、參數化查詢、TS 型別友善 |
 | 驗證 | **zod**（服務層）/ Elysia `t`（路由層） | 雙層驗證：邊界擋格式、服務擋語意 |
 | 認證 | **jose** | JWT 簽發/驗證（HS256），httpOnly cookie |
 | 密碼 | **Bun.password**（內建 argon2id） | 免額外套件 |
@@ -82,10 +85,11 @@ fms/
 │   │   ├── routes/           # sites.ts / tasks.ts / registrations.ts / auth.ts / admin.ts / csv.ts
 │   │   ├── services/         # scheduling.ts（衝突/證照/能力檢核）、tasks.ts、auth.ts
 │   │   └── db/
-│   │       ├── client.ts     # PGlite 單例（含 in-memory 工廠給測試用）
-│   │       ├── schema.sql    # 冪等建表
+│   │       ├── pool.ts       # postgres.js 連線池單例（含測試用 schema 工廠）
+│   │       ├── schema.sql    # 冪等建表（測試建 schema 時直接灌這支）
+│   │       ├── migrations/   # 版本化 migration：001_init.sql, 002_*.sql…（只增不改）
 │   │       └── templates/    # 具名 SQL 模板（每條：name + sql + zod params）
-│   ├── tests/                # bun test（每檔開獨立 in-memory PGlite）
+│   ├── tests/                # bun test（每檔開自己的 PG schema,見 2.1.6）
 │   ├── package.json
 │   └── tsconfig.json
 ├── frontend/
@@ -95,10 +99,11 @@ fms/
 │   │   └── pages/            # tasks/ sites/ registrations/ admin/ public-board/
 │   ├── package.json
 │   └── vite.config.ts        # /api proxy → http://localhost:3000
-├── data/                     # PGlite 資料目錄（gitignore）
 ├── testdata/                 # ACC-1 主測試集 + ACC-4 千筆任務集（CSV）
-├── .github/workflows/ci.yml
-└── README.md                 # 上手指令：bun install ×2 → 兩個 dev → 匯入測試集
+├── docker-compose.yml        # db / backend / frontend 三服務
+├── .env.example              # DB 連線參數範本（真 .env 不進版控）
+├── .github/workflows/ci.yml  # CI 起 postgres service container
+└── README.md                 # 上手指令：起 db → bun install ×2 → 兩個 dev → 匯入測試集
 ```
 
 #### 2.1.4 權限模型（RBAC）——Refine 對應 Django Admin 的作法
@@ -128,27 +133,83 @@ fms/
 > 進階選配：權限矩陣可改以 **Casbin**（`casbin` npm 套件）定義 model/policy，Refine 官方有
 > accessControlProvider × Casbin 整合範例——教學上列為加分題，預設用上表的純 TS 矩陣即可。
 
-#### 2.1.5 資料庫（PGlite）使用規範
+#### 2.1.5 資料庫（PostgreSQL 17）使用規範
 
-- **是什麼**：完整 Postgres 編譯成 WASM，跑在 Bun 進程內；`new PGlite('./data/fms')` 即開，
-  零安裝、零服務、跨平台——完全滿足「不需要外部資料庫」的課程前提，又能用真 Postgres 語法
-  （`generate_series` 灌千筆測試資料、window function、`EXCLUDE` 約束等皆可教）。
-- **單連線約束（誠實列）**：PGlite 為單連線嵌入式庫——後端以**單一共享 client** 序列化存取
-  （Elysia 單進程內天然成立）；**禁止**多進程共用同一資料目錄。本專案規模（ACC-4 千筆任務）
-  實測無效能疑慮。
-- **測試隔離**：每個測試檔 `new PGlite()`（純 in-memory）+ 跑一次 `schema.sql`——
-  免清庫、天然平行隔離，比共享測試資料庫乾淨。
-- **排程衝突的資料庫層防線**：TASK-6（同據點同時段工作站/人員不可重疊）除服務層檢核外，
-  加 **UNIQUE/EXCLUDE 約束**當最後防線——教學重點：「應用層檢查會有 race，資料庫約束才是底」。
+- **是什麼**：**獨立的 PostgreSQL 17 伺服器**，由 Compose 的 `db` 服務提供，
+  後端經 TCP 以連線池存取。映像用 `pgvector/pgvector:0.8.6-pg17`——就是官方 PG 17
+  加裝 pgvector 擴充，現在不用向量也完全不影響，但將來要做向量檢索時**不必換映像、
+  不必重建資料**（見 2.1.10 未來擴充路線）。
+- **為什麼用真 PG 而不是嵌入式資料庫**：這是**實戰經驗**的取捨。真 PG 伺服器帶來
+  嵌入式庫學不到的四件事：
+  1. **連線池**——連線是有限資源，池會滿、會逾時；`max` 怎麼設、連線何時歸還，
+     是每個後端工程師都要會的。
+  2. **真正的並行**——多請求同時打同一張表才會**真的**產生 race condition；
+     嵌入式單連線是序列化的，race 根本重現不出來（下面第 4 點是本課的心臟）。
+  3. **連線設定與機敏資訊管理**——host/port/密碼進環境變數、`.env` 不進版控，
+     這是離開教室後每天都要面對的事。
+  4. **可被外部工具連線**——psql、DBeaver、ETL 工具、BI 都能連進來看同一份資料；
+     嵌入式資料庫做不到，而這正是資料能流向資料倉儲的前提（2.1.10）。
+- **連線規範**：
+  - 後端以 **`postgres.js` 連線池單例**（`db/pool.ts`）存取，**禁止**每個請求開新連線。
+  - 連線參數一律走環境變數（`PGHOST`/`PGPORT`/`PGDATABASE`/`PGUSER`/`PGPASSWORD`），
+    repo 只放 `.env.example`；**真 `.env` 不進版控**（TECH-9）。
+  - SQL 一律參數化（`$1, $2…`），禁字串拼接（2.1.7 鐵律 2）。
+- **schema 演進**：`db/migrations/NNN_*.sql` 版本化累加，**只增不改舊檔**——
+  改了舊檔，已經跑過的機器不會重跑，你的資料庫和同學的就長得不一樣了。
+- **排程衝突的資料庫層防線（本課心臟）**：TASK-6（同據點同時段工作站/人員不可重疊）
+  除服務層檢核外，加 **`EXCLUDE USING gist` 約束**當最後防線：
+
+  ```sql
+  -- btree_gist 必裝:gist 索引預設不支援純量欄位的 = 運算子
+  CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+  ALTER TABLE tasks ADD CONSTRAINT no_overlap_work_station
+    EXCLUDE USING gist (
+      work_station_id WITH =,
+      -- '[)' = 含頭不含尾:09:00-10:00 與 10:00-11:00 **不算**重疊(邊界接續是合法的)
+      tstzrange(starts_at, ends_at, '[)') WITH &&
+    ) WHERE (status <> 'Finished');
+  ```
+
+  操作員的重疊約束同理（`operator_id WITH =`）。
+  > **兩個細節值得想清楚**：
+  > ① `'[)'` 邊界——不寫的話預設也是 `[)`,但**明寫出來**代表你知道自己在決定
+  >   「10:00 結束的任務和 10:00 開始的任務算不算撞」（答案:不算,這才合理）。
+  > ② `WHERE (status <> 'Finished')` 是**部分索引**——已完成的歷史任務不該再
+  >   擋住新排程。想一下這個判斷對不對,它會直接影響 ACC-4 千筆資料下的行為。
+  > **換成真 PG 之後，這一條才真的可驗**：開兩個連線同時 INSERT 重疊時段，
+  > 服務層檢查會**雙雙通過**，但資料庫會擋下其中一個（`23P01` exclusion_violation）。
+  > 請寫一個並行測試證明它——這是「應用層檢查會有 race，資料庫約束才是底」
+  > 從口號變成你**親手驗過**的事實。
 
 #### 2.1.6 測試策略與 CI
 
 | 層 | 工具 | 內容 |
 |---|---|---|
 | 單元測試 | `bun test` | services 層：衝突檢核（時段重疊/跨日/超 6 小時/非 5 分鐘倍數）、證照/能力匹配、狀態機轉移、匿名化 |
+| **並行測試** | `bun test` | **TASK-6 race**：兩條連線同時搶同一工作站同一時段 ⇒ 恰好一條成功、另一條收到 `23P01`（2.1.5 心臟條款） |
 | API 測試 | `bun test` + Elysia `handle()` | 路由層：驗參 400、未登入 401、越權 403、正常流 200 |
 | 驗收展示 | `testdata/` 兩套 CSV | ACC-1 主測試集手動走流程；ACC-4 千筆集匯入後實測新增任務無可察覺變慢 |
-| CI | GitHub Actions | `bun install` → `tsc --noEmit`（前後端）→ `bun test`；main 分支保護：PR + CI 綠才可 merge |
+| CI | GitHub Actions | 起 `postgres` service container → `bun install` → `tsc --noEmit`（前後端）→ `bun test`；main 分支保護：PR + CI 綠才可 merge |
+
+**測試隔離：一個測試檔 = 一個 schema。** 換成真 PG 後不再有 in-memory 實例可用，
+改用 PG 自己的 schema 當隔離單位——同一台 PG、各測試檔互不干擾，且**平行安全**：
+
+```ts
+// tests/helpers/db.ts
+const id = `test_${crypto.randomUUID().replaceAll('-', '')}`;
+await sql`CREATE SCHEMA ${sql(id)}`;
+await sql`SET search_path TO ${sql(id)}`;
+await sql.file('src/db/schema.sql');       // 在這個 schema 裡建表
+// …測試結束
+await sql`DROP SCHEMA ${sql(id)} CASCADE`;
+```
+
+**規範**：
+1. 測試**禁止**連正式資料庫——CI 與本機都用獨立的 `fms_test` 資料庫（`.env.test`）。
+2. schema 名用隨機字串，**不要**用測試檔名（同檔平行跑多個 case 會撞）。
+3. `afterAll` 一定 `DROP SCHEMA … CASCADE`——忘了清，PG 裡會堆滿殘骸。
+4. 測 race 的案例**必須開兩條真連線**（不能共用同一條）,否則測不到並行。
 
 #### 2.1.7 SQL 資產化規範（query-template，TS + Zod）
 
@@ -255,22 +316,47 @@ export const publicWeekTasks: QueryTemplate = {
 
 #### 2.1.9 Docker Compose 部署規格（TECH-13）
 
-單機（Docker Desktop）、雙服務：nginx 服務前端靜態檔並反代 `/api`，後端不對外露 port。
+單機（Docker Desktop）、**三服務**：`db`（PostgreSQL）＋`backend`（Bun/Elysia）＋
+`frontend`（nginx 服務靜態檔並反代 `/api`）。只有 frontend 對外露 port。
 
 ```yaml
 # docker-compose.yml
 services:
+  db:
+    image: pgvector/pgvector:0.8.6-pg17    # PG 17 + pgvector（版本鎖死,見 2.1.5）
+    environment:
+      POSTGRES_DB: fms
+      POSTGRES_USER: fms
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?請在 .env 設密碼}   # ★不給預設值,逼你設
+    volumes:
+      - pgdata:/var/lib/postgresql/data     # ★具名 volume——容器重建資料不丟
+    healthcheck:                            # ★backend 要等 db 真的可連,不是「容器起來」
+      test: ["CMD-SHELL", "pg_isready -U fms -d fms"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # 不對外露 port:只有 backend 連得到。要用 psql/DBeaver 看資料時再自行加 ports
+
   backend:
     build: ./backend               # FROM oven/bun:1;bun install --offline（快取入 build context）
-    volumes:
-      - ./data:/app/data           # ★PGlite 資料目錄放 volume——容器重建資料不丟
     environment:
-      - FMS_DATA_DIR=/app/data/fms
-    # ⚠ 禁 scale/replicas>1：PGlite 單連線（2.1.5），多副本共用資料目錄=資料毀損
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: fms
+      PGUSER: fms
+      PGPASSWORD: ${POSTGRES_PASSWORD:?}
+    depends_on:
+      db:
+        condition: service_healthy          # ★等 healthcheck 過才啟動
+    # 啟動時先跑 migrations 再開服務
+
   frontend:
     build: ./frontend              # 兩階段：oven/bun build(vite) → nginx:alpine 服務 dist
     ports: ["8080:80"]
     depends_on: [backend]
+
+volumes:
+  pgdata:
 ```
 
 ```nginx
@@ -280,16 +366,67 @@ location /     { try_files $uri /index.html; }        # SPA fallback
 ```
 
 **規範**：
-1. PGlite 資料一律在 volume（`./data`），**禁**放容器層；`down`/`up` 後資料須仍在。
-2. **backend 單副本鐵律**：compose 不得對 backend 設 replicas；這是 2.1.5 單連線
-   約束在部署層的鏡像。
-3. cookie 在 compose 拓撲下天然同源（瀏覽器只看到 :8080，`/api` 由 nginx 轉發）
+1. PG 資料一律在**具名 volume**（`pgdata`），**禁**放容器層；`down`/`up` 後資料須仍在
+   （ACC-7 會實測）。注意 `docker compose down -v` 的 `-v` 會**刪掉 volume**——
+   驗收前別手滑。
+2. **密碼不進版控**：`POSTGRES_PASSWORD` 走 `.env`（repo 只放 `.env.example`）；
+   compose 用 `${POSTGRES_PASSWORD:?}` 語法，**沒設就直接啟動失敗**，
+   而不是靜靜用一個弱預設值跑起來。
+3. **啟動順序**：`depends_on` 只保證「容器啟動」，不保證「PG 可連線」——
+   必須配 `healthcheck` + `condition: service_healthy`，否則 backend 會在
+   PG 還沒 ready 時連線失敗（附錄 B 坑 9）。
+4. cookie 在 compose 拓撲下天然同源（瀏覽器只看到 :8080，`/api` 由 nginx 轉發）
    ——附錄 B 坑 7 的正解之二。
-4. **離線三件套**：基底映像預載（`docker save oven/bun:1 nginx:alpine -o base.tar` →
-   教室機 `docker load`）＋ bun 離線快取入 build context ＋ lockfile——三者齊備即可
-   斷網 `docker compose up --build`。
-5. 驗收指令即文件：README 須含「`docker load` → `docker compose up -d` → 開
-   `http://localhost:8080`」三步，照打即通（ACC-7）。
+5. **離線四件套**：基底映像預載（`docker save oven/bun:1 nginx:alpine
+   pgvector/pgvector:0.8.6-pg17 -o base.tar` → 教室機 `docker load`）＋ bun 離線快取
+   入 build context ＋ lockfile ＋ `testdata/`——四者齊備即可斷網
+   `docker compose up --build`。
+   > ⚠ **PG 映像約 400MB，是四件套裡最大的一塊**——備課時務必先在教室機
+   > `docker load` 驗過，別到上課才發現沒帶。
+6. 驗收指令即文件：README 須含「`docker load` → 設 `.env` → `docker compose up -d`
+   → 開 `http://localhost:8080`」四步，照打即通（ACC-7）。
+
+#### 2.1.10 未來擴充路線（說明用，**不列入本次驗收**）
+
+本節解釋「為什麼現在要換成真 PG」的長線理由。**這些都不是本次作業要做的**——
+列在這裡是讓你知道今天的設計決策通往哪裡，不要為了未來過度設計今天的系統。
+
+**今天的系統是 OLTP（線上交易處理）**：一次一筆任務的建立、指派、完成，
+要求正確與即時。**資料分析是 OLAP（線上分析處理）**：跨月跨據點的稼動率、
+瓶頸工作站、證照缺口——要掃大量歷史資料做聚合。
+
+> **鐵律：不要在正式營運資料庫上跑大型分析查詢。** 一支掃三年歷史的聚合查詢
+> 會拖垮正在排程的操作員。兩者要分開——這就是資料倉儲存在的理由，
+> 也是 EXCL-2（報表功能不在範圍內）的技術背景。
+
+**演進路徑**：
+
+```
+[今天] FMS 營運庫 (PG 17, OLTP)
+          │
+          │  ETL / CDC：定期或即時抽取
+          ▼
+[未來] 資料倉儲 (PG, OLAP)          ← 星型 schema:事實表(任務) + 維度表(據點/產品/製程/人員)
+          ├─ pgvector：語意檢索與相似度
+          └─ WrenAI：自然語言問資料("上個月哪個工作站最忙?")
+```
+
+| 元件 | 位置 | 做什麼 | 為何需要今天的真 PG |
+|---|---|---|---|
+| **ETL / CDC** | 營運庫 → 倉儲 | 定期抽取或以 logical replication 即時同步 | 嵌入式資料庫沒有 TCP 端點與 WAL,外部工具連不進來、也訂閱不到變更 |
+| **pgvector** | 倉儲（本專案映像已內建） | 向量欄位與相似度檢索（如「找出類似的排程樣態」） | 已用 `pgvector/pgvector:0.8.6-pg17`,將來 `CREATE EXTENSION vector` 即可,**不必換映像、不必搬資料** |
+| **WrenAI** | 倉儲之上 | 自然語言轉 SQL,對倉儲做聚合分析 | 需要一個它連得進去的標準 PG 端點,並依賴穩定的 schema 語意 |
+
+**這條路線對你今天的作業有兩個實質影響**（都已寫進規格，做到即可）：
+
+1. **SQL 模板的 `source:` 欄位**（2.1.7 鐵律 1）——每條 SQL 都能反查需求編號。
+   將來建倉儲時，「這個數字的口徑是什麼」有據可查；口徑分叉是資料倉儲最貴的 bug。
+2. **一模板一口徑**（2.1.7 鐵律 4）——同一個數字兩處要用就抽同一條模板。
+   營運端口徑不一致，ETL 到倉儲只會把混亂放大。
+
+> **GPU 運算（CUDA 等）不在資料庫層。** pgvector 在 PG 內做的是向量儲存與檢索；
+> 若將來要做模型推論或大規模向量運算，那是**應用層**的事（獨立服務），
+> 不會、也不該塞進 PG。這兩層別混為一談。
 
 ### 2.2 工廠結構（Factory Structure）
 
@@ -382,7 +519,7 @@ location /     { try_files $uri /index.html; }        # SPA fallback
 | **ACC-4** | 第二份包含 1,000 個任務的測試資料集會被自動匯入。手動新增一個額外任務時，不可因資料量而出現可察覺的速度變慢 |
 | **ACC-5** | 使用者介面（UI）以 **Ant Design 元件庫**達到最低限度的可用性（表格/表單/週曆檢視皆用現成元件，不手刻）      |
 | **ACC-6** | **斷網驗收**：在完全無網路的環境下展示全部功能；瀏覽器 DevTools Network 面板不得出現任何外部網域請求（TECH-12） |
-| **ACC-7** | **Compose 驗收**：於單機 Docker Desktop 上，照 README 三步（`docker load` → `docker compose up -d` → 開瀏覽器）啟動並走完附錄 C Demo 劇本；重建容器（`down`/`up`）後資料仍在（volume 驗證） |
+| **ACC-7** | **Compose 驗收**：於單機 Docker Desktop 上，照 README 四步（`docker load` → 設 `.env` → `docker compose up -d` → 開瀏覽器）啟動並走完附錄 C Demo 劇本；重建容器（`down`/`up`）後資料仍在（**具名 volume 驗證**） |
 
 ---
 
@@ -410,10 +547,10 @@ location /     { try_files $uri /index.html; }        # SPA fallback
 
 | 里程碑 | 產出（可 demo） | 對應需求 | 等級 |
 |---|---|---|---|
-| **M1** | schema.sql + admin 資源頁（Refine Inferencer 起手）：產品/製程/證照/能力/據點/工作站 CRUD | TECH-11, PERS-4~6 | M |
+| **M1** | compose 起 db + migrations + admin 資源頁（Refine Inferencer 起手）：產品/製程/證照/能力/據點/工作站 CRUD | TECH-11, PERS-4~6 | M |
 | **M2** | 登入（JWT httpOnly cookie）+ accessControlProvider 四角色骨架（未授權=403） | PERS-1~3, 7, 16, 23 | M |
 | **M3** | 操作員登記（據點×週次）+ 主管建任務 | FACT-3, PERS-9~11, 19 | M |
-| **M4** | **排程指派＋衝突檢核 service**（本專案的心臟：能力/證照/重疊/時窗） | TASK-3~7, FACT-7 | M |
+| **M4** | **排程指派＋衝突檢核 service**（本專案的心臟：能力/證照/重疊/時窗）＋ **`EXCLUDE` 約束並行測試** | TASK-3~7, FACT-7 | M |
 | **M5** | CSV 匯入 + 公開看板（匿名化 SQL 模板） | PERS-15, 24~25 | M |
 | **M6** | 千筆效能 + 斷網驗收 + `bun test` 補齊 | ACC-4, ACC-6, TECH-8 | M |
 | S | 週曆視覺化、Casbin 整合、finalize 鎖定 UX 等 | PERS-14 等 | S |
@@ -427,7 +564,8 @@ location /     { try_files $uri /index.html; }        # SPA fallback
 1. **ISO 8601 週次**：一年可能有 53 週；1/1 可能屬於「去年第 52 週」——TS 沒有內建
    isocalendar，**自己手算必錯**；寫一個 `isoWeek()` 工具函式並先寫測試（12/31、1/1、閏年）。
 2. **排程 race condition**：兩請求同時指派同一工作站——服務層檢查會雙雙通過；
-   **資料庫層約束才是底**（PGlite 支援 `EXCLUDE USING gist` 或 UNIQUE 近似解，見 2.1.5）。
+   **資料庫層約束才是底**（`EXCLUDE USING gist`，見 2.1.5）。換成真 PG 後這件事
+   **真的重現得出來**，也**真的測得到**——並行測試是必要項，不是選配。
 3. **CSV 編碼**：Excel 存的 CSV 是 CP950 不是 UTF-8——匯入端須偵測或明訂編碼並給清楚錯誤（TECH-10）。
 4. **匿名化的位置**：在前端藏名字＝沒藏（API 回應裡看得到）——必須在 **SQL 層**就以別名輸出
    （見 2.1.7 範例的 `dense_rank()`），API 從頭到尾不含真名（PERS-24）。
@@ -435,12 +573,18 @@ location /     { try_files $uri /index.html; }        # SPA fallback
 **TS 全棧專屬坑**：
 5. **Date 與時區**：JS `Date` 的隱式本地時區轉換是災難源——時刻一律存 ISO 字串或
    epoch，比較用數值；顯示層才格式化。
-6. **PGlite 單連線**：忘了 2.1.5 約束、在測試裡共用正式資料目錄 ⇒ 髒資料互咬——測試
-   一律 `new PGlite()` in-memory。
+6. **連線池耗盡**：每個請求開一條新連線而不歸還 ⇒ 跑一陣子就 `too many connections`
+   或整個卡住。一律用 `db/pool.ts` 的池單例；查完務必歸還（用完即釋放,別把連線
+   抓在手上做慢事）。測試**禁連正式庫**,一律 `fms_test` + 各自 schema（2.1.6）。
 7. **cookie 跨埠**：vite 5173 → 後端 3000，cookie 要走 vite proxy（同源化）才收得到;
    直接 fetch `http://localhost:3000` 會掉 cookie（CORS + credentials 雙坑）。
 8. **Refine 只擋 UX**：`accessControlProvider` 擋掉按鈕≠安全——後端每個端點都要有
    自己的角色守衛（2.1.4 鐵律：前端擋 UX、後端擋安全）。
+9. **PG 還沒 ready 就連線**：`depends_on` 只等「容器啟動」,不等「PG 可接受連線」——
+   第一次 `compose up` 十之八九是 backend 先撞牆。解法是 `healthcheck` +
+   `condition: service_healthy`（2.1.9 規範 3）。
+10. **`docker compose down -v` 手滑**：`-v` 會連 volume 一起刪,資料全沒。
+    平常用 `down` 就好;真要清庫再加 `-v`,而且想一下再按 Enter。
 
 ## 附錄 C：Demo 劇本（10 分鐘驗收走位；學員自測與老師抽查同一份）
 
@@ -462,9 +606,9 @@ location /     { try_files $uri /index.html; }        # SPA fallback
 | 語言/框架 | Python + Django（伺服端渲染） | TypeScript + Bun + Elysia + Refine（SPA） |
 | UI | AdminLTE（Bootstrap，template 渲染） | Ant Design（React 元件） |
 | 管理介面 | Django admin（**約定即得**） | Refine resources + accessControlProvider（**顯式接**） |
-| 資料庫 | SQLite（Django ORM） | PGlite（嵌入式 Postgres，SQL 模板） |
+| 資料庫 | SQLite（Django ORM） | **PostgreSQL 17 伺服器**（Docker,連線池 + SQL 模板） |
 | 驗證 | Django Forms / `clean()` | Elysia `t` + Zod 雙層 |
-| 測試 | Django `TestCase` | `bun test` + in-memory PGlite |
+| 測試 | Django `TestCase` | `bun test` + 每檔獨立 PG schema |
 | 教學重點 | MVC、ORM、約定優於配置 | 型別安全全棧、REST 契約、顯式權限模型 |
 
 > 兩版功能需求（FACT/TASK/PERS/ACC）編號完全相同——上完 V2 再看 V3，
@@ -474,3 +618,4 @@ location /     { try_files $uri /index.html; }        # SPA fallback
 
 *v3.1（2026-08-25）：技術棧由 Python/Django/SQLite 改版為 TypeScript 全棧（Bun + Elysia + PGlite + Refine + Ant Design）；功能需求（FACT/TASK/PERS/ACC/EXCL）與原版一致，編號不變。*
 *v3.2（2026-08-25）：TECH-12 離線鐵律/ACC-6 斷網驗收；新增附錄 A~D（里程碑評分/踩坑地圖/Demo 劇本/版本對照），與 V2 版同步骨架、各自技術細節。*
+*v3.3（2026-08-25）：資料庫由 **PGlite（嵌入式）改為 PostgreSQL 17 伺服器**（映像 `pgvector/pgvector:0.8.6-pg17`，Compose `db` 服務）——理由與實戰取捨見 2.1.5；連動更新 TECH-3/4/5/7/12、2.1.1 架構、2.1.2 選型、2.1.3 結構、2.1.6 測試隔離（每檔一個 schema）、2.1.9 部署（三服務＋healthcheck＋離線四件套）、ACC-7、附錄 A M1/M4、附錄 B 坑 2/6/9/10、附錄 D；新增 2.1.10 未來擴充路線（ETL→資料倉儲、pgvector、WrenAI；**不列入驗收**）。功能需求（FACT/TASK/PERS/ACC/EXCL）編號不變。*

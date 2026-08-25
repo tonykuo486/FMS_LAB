@@ -21,7 +21,7 @@ FMS_LAB/
 └── FMS_V3/                   ← V3 教材（TypeScript 路線；原獨立 repo，已併入本 repo）
     ├── README.md             ← 開工指引＋轉交自己 GitHub 的步驟
     ├── .gitignore
-    └── docs/SRS.md           ← V3 需求規格 v3.2：Bun + Elysia + PGlite + Refine + AntD
+    └── docs/SRS.md           ← V3 需求規格 v3.3：Bun + Elysia + PostgreSQL 17 + Refine + AntD
 ```
 
 ## 兩個版本一眼看
@@ -29,7 +29,7 @@ FMS_LAB/
 | | **V2** | **V3** |
 |---|---|---|
 | 路線 | 約定優於配置（伺服端渲染） | 顯式契約（型別安全全棧） |
-| 棧 | Python 3 / Django / SQLite / AdminLTE | TypeScript / Bun / Elysia / PGlite / Refine + Ant Design |
+| 棧 | Python 3 / Django / SQLite / AdminLTE | TypeScript / Bun / Elysia / PostgreSQL 17 / Refine + Ant Design |
 | 適合 | 第一個 Web 專案的初學者 | 已懂 HTTP/SQL，要學前後端分離 |
 | 規格 | [FMS_V2/docs/SRS.md](FMS_V2/docs/SRS.md) | [FMS_V3/docs/SRS.md](FMS_V3/docs/SRS.md) |
 

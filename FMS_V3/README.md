@@ -4,7 +4,7 @@
 > 目錄裡沒有任何實作程式碼——`backend/`、`frontend/`、`schema.sql`、`Dockerfile`
 > 全部由**你**依 [`docs/SRS.md`](docs/SRS.md) 產出。這就是本次專題的作業內容。
 
-**技術棧**：TypeScript（`strict`）／Bun／Elysia／PGlite／Refine + Ant Design／Vite
+**技術棧**：TypeScript（`strict`）／Bun／Elysia／**PostgreSQL 17**／Refine + Ant Design／Vite
 **必讀**：[`docs/SRS.md`](docs/SRS.md)——第 2 章**每一條編號都是驗收項**。
 
 ---
@@ -28,7 +28,17 @@ vite 5173 → 後端 3000，cookie 要走 vite proxy 同源化才收得到。
 
 ```bash
 bun --version        # 需 Bun ≥1.1（runtime + 套件管理 + 測試器三合一）
-docker --version     # 驗收要跑 docker compose（TECH-13）
+docker --version     # 資料庫走 Docker,開發期就會用到（TECH-4/13）
+```
+
+**資料庫不需要在本機安裝**——`docker compose up -d db` 就得到一台 PostgreSQL 17
+（映像 `pgvector/pgvector:0.8.6-pg17`）。開發時的啟動順序是：
+
+```bash
+cp .env.example .env          # 設 POSTGRES_PASSWORD（沒設 compose 會直接失敗）
+docker compose up -d db       # ①先起資料庫,等 healthcheck 過
+cd backend  && bun run --watch src/index.ts   # ②後端
+cd frontend && bun run dev                     # ③前端
 ```
 
 沒有 Bun 就先裝：
@@ -47,7 +57,7 @@ curl -fsSL https://bun.sh/install | bash
 | 你要做的事 | 指令 |
 |---|---|
 | 開專案 | `bun init` |
-| 加依賴 | `bun add elysia @electric-sql/pglite` |
+| 加依賴 | `bun add elysia postgres` |
 | 加開發依賴 | `bun add -d typescript @biomejs/biome` |
 | 還原環境（照 `bun.lock`） | `bun install` |
 | 離線還原（教室機，TECH-12） | `bun install --offline` |
@@ -65,9 +75,14 @@ curl -fsSL https://bun.sh/install | bash
 必須在 **SQL 層**就以別名輸出（見 SRS 2.1.7 的 `dense_rank()` 範例），
 API 從頭到尾不含真名。
 
-**PGlite 單連線（2.1.5）。** 後端以單一共享 client 序列化存取；
-測試一律 `new PGlite()` 開 in-memory 實例，**禁止**多進程共用同一資料目錄，
-compose 也**禁止**對 backend 設 `replicas > 1`。
+**連線池與測試隔離（2.1.5／2.1.6）。** 後端一律用 `db/pool.ts` 的連線池單例，
+**禁止**每個請求開新連線（會 `too many connections`）。測試**禁連正式庫**——
+用 `fms_test` 資料庫，每個測試檔開自己的 schema，跑完 `DROP SCHEMA … CASCADE`。
+
+**排程 race 是必測項（2.1.5）。** 換成真 PG 之後，兩條連線同時搶同一工作站同一時段
+**真的重現得出來**：服務層檢查會雙雙通過，`EXCLUDE USING gist` 約束會擋下其中一條
+（`23P01`）。請寫一個並行測試證明它——這是本課「應用層檢查會有 race，
+資料庫約束才是底」從口號變成你親手驗過的事實。
 
 ## 交付門檻（照這個順序自測）
 
@@ -111,8 +126,9 @@ cat .gitignore
 git add -A && git commit -m "chore: 專案初始化（SRS + README + gitignore）"
 ```
 
-> `bun.lock` **要**進版控（環境可重現）；`node_modules/`、`data/`（PGlite 資料目錄）
-> **不進**（可重建、體積大）。
+> `bun.lock` **要**進版控（環境可重現）；`node_modules/` **不進**（可重建、體積大）。
+> **`.env` 絕對不進版控**（含資料庫密碼）——repo 只放 `.env.example`。
+> PG 資料在 Docker 具名 volume 裡，本來就不在專案目錄下。
 
 ### 步驟 3：建遠端 repo 並推送
 
