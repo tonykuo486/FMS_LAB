@@ -1,6 +1,6 @@
 # 需求規格書（Lastenheft）：工廠管理系統（Factory Management System）
 
-**程式設計專題 WI（Programming Project WI）** ｜ v3.5（2026-08-25）：TypeScript 全棧版（PostgreSQL 17；版本鎖定見 2.1.11）
+**程式設計專題 WI（Programming Project WI）** ｜ v3.6（2026-08-25）：TypeScript 全棧版（PostgreSQL 17；版本鎖定見 2.1.11）
 
 ---
 
@@ -214,6 +214,11 @@ FMS 的四個角色（Admin／Site Manager／Operator／Anonymous）是**需求�
   > 服務層檢查會**雙雙通過**，但資料庫會擋下其中一個（`23P01` exclusion_violation）。
   > 請寫一個並行測試證明它——這是「應用層檢查會有 race，資料庫約束才是底」
   > 從口號變成你**親手驗過**的事實。
+  >
+  > ✅ **上面這段已於 2026-08-25 在 PG 17.11 實測**：兩條連線同時搶同一工作站
+  > 同一時段，**恰好一條成功**、另一條收到 `23P01`，資料表最終只有一筆;
+  > 邊界接續（10:00 接 10:00）通過、與 `Finished` 任務重疊通過（部分索引生效）。
+  > 完整紀錄見 [`../infra/README.md`](../infra/README.md)「實測紀錄」。
 
 #### 2.1.6 測試策略與 CI
 
@@ -351,7 +356,8 @@ export const publicWeekTasks: QueryTemplate = {
 
 > **開發期環境已附在 repo：[`../infra/`](../infra/)** ——只含 `db`（PostgreSQL 17 +
 > pgvector）與 `minio`，`cd infra && docker compose up -d` 就有資料庫可用，
-> 不必手動裝 PG。
+> 不必手動裝 PG。**該份已於 2026-08-25 實測通過**（兩服務皆 `healthy`、
+> `down`/`up` 資料保留、`db/init/` 自動執行）——見 `infra/README.md` 實測紀錄。
 >
 > **但 `infra/` 不是交付形態。** 本節規格的三服務 compose（含 backend / frontend）
 > 要**你自己寫在專案根目錄**，ACC-7 驗收跑的是那一份。兩份刻意分開：開發期天天改
@@ -745,3 +751,4 @@ React 18 + Refine 4 + antd 5 是目前教學資源覆蓋最厚的組合。**版�
 *v3.3（2026-08-25）：資料庫由 **PGlite（嵌入式）改為 PostgreSQL 17 伺服器**（映像 `pgvector/pgvector:0.8.6-pg17`，Compose `db` 服務）——理由與實戰取捨見 2.1.5；連動更新 TECH-3/4/5/7/12、2.1.1 架構、2.1.2 選型、2.1.3 結構、2.1.6 測試隔離（每檔一個 schema）、2.1.9 部署（三服務＋healthcheck＋離線四件套）、ACC-7、附錄 A M1/M4、附錄 B 坑 2/6/9/10、附錄 D；新增 2.1.10 未來擴充路線（ETL→資料倉儲、pgvector、WrenAI；**不列入驗收**）。功能需求（FACT/TASK/PERS/ACC/EXCL）編號不變。*
 *v3.4（2026-08-25）：新增 **2.1.11 版本鎖定表**（Bun 1.4.0 / Elysia 1.4.29 / pg 8.23.0 / zod 3.25.76 / TS 5.9.3 / React 18.3.1 / antd 5.29.3 / Refine 4.58 / Vite 6.4.3）——以既有生產專案的版本線為基準,經 2026-08-25 實測核實（後端 7/7、前端 2/2 測試通過,前後端 tsc 0 error,vite build 成功）;DB 驅動由 postgres.js 改為 **pg**（顯式連線池,教學考量）;TECH-1 鎖版;2.1.2 選型表補版本;附錄 B 新增坑 11（antd peer 靜默不相容）與坑 12（react-query peer 漏裝）。功能需求編號不變。*
 *v3.5（2026-08-25）：repo 附**開發期環境** `infra/`（`docker-compose.yml`：db＝PostgreSQL 17 + pgvector、minio＝S3 相容儲存,為將來 ETL/檔案上傳預留;附 `.env.example` 與 `README.md`）,學員 `cd infra && docker compose up -d` 即有資料庫,不必手動安裝——**`infra/` 是環境不是交付物**,交付形態的三服務 compose 由學員自寫於專案根目錄（ACC-7 驗那一份）,兩份分開放;2.1.3 結構補 `infra/` 與 `db/init/`;2.1.4 新增「為何不採資料表驅動 RBAC」的取捨說明（列為加分題,鐵律仍是前端擋 UX、後端擋安全）。功能需求編號不變。*
+*v3.6（2026-08-25）：`infra/` compose **實測核實**（Docker 29.5.3 / Compose v5.1.4, WSL2）：兩服務皆 healthy、PG 17.11、pgvector 0.8.6 + btree_gist 1.7 可用、`down`/`up` 資料保留、`db/init/` 自動執行;**2.1.5 的 `EXCLUDE USING gist` 約束與並行 race 實測通過**（重疊擋下 23P01、邊界接續通過、Finished 部分索引生效、兩連線同搶恰好一條成功）;修正一處與實測不符的敘述:`backend/` 不存在時掛載**不會**報錯（Docker 自動建空目錄）。功能需求編號不變。*

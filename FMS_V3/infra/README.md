@@ -1,5 +1,11 @@
 # infra — 開發期基礎設施
 
+> ✅ **2026-08-25 實測通過**（Docker 29.5.3 / Compose v5.1.4 on WSL2 Ubuntu）：
+> `docker compose up -d` → db 與 minio 皆 `healthy`、PostgreSQL 17.11、
+> pgvector 0.8.6 與 btree_gist 1.7 皆可用、`down`/`up` 後資料保留、
+> `db/init/` 自動執行、SRS 2.1.5 的 `EXCLUDE` 約束與並行 race 實測符合預期。
+> 詳見本檔末「實測紀錄」。
+
 **這個目錄不是你的交付物，是給你用的環境。**
 裡面只有「開發時需要、但你不必自己寫」的外部服務：資料庫與物件儲存。
 
@@ -121,8 +127,9 @@ fms-v3/
 
 ## 疑難排解
 
-**`docker compose up` 說路徑不存在** —— compose 掛載了 `../backend/src/db/init`，
-你還沒建 `backend/` 時會失敗。把 compose 裡那一行先註解掉，等建好再打開。
+**`backend/` 還沒建，可以直接 `up` 嗎？** —— 可以。compose 掛載了
+`../backend/src/db/init`，該目錄不存在時 Docker 會**自動建成空目錄**，不會報錯
+（2026-08-25 實測）。空的 init 目錄不影響資料庫啟動。
 
 **backend 連不上資料庫** —— 先確認 `docker compose ps` 是 `healthy`（不是 `starting`）。
 PG 容器「起來了」不等於「可接受連線」，這是 SRS 附錄 B 坑 9。
@@ -132,3 +139,36 @@ PG 容器「起來了」不等於「可接受連線」，這是 SRS 附錄 B 坑
 
 **密碼改了但沒生效** —— PG 的密碼只在**資料庫第一次建立時**寫入。改密碼要
 `docker compose down -v`（★會刪資料）再 `up`。
+
+---
+
+## 實測紀錄（2026-08-25）
+
+環境：Docker 29.5.3 / Docker Compose v5.1.4，WSL2 Ubuntu on Windows 11。
+測試時以 `.env` 把 port 改到 5xxxx 區段避開既有服務——**這本身也驗證了
+`POSTGRES_PORT` / `MINIO_*_PORT` 覆蓋機制可用**。
+
+| # | 驗證項 | 結果 |
+|---|---|---|
+| 1 | 沒有 `.env` 就啟動 | **正確擋下**，印出「請先 cp .env.example .env 並設定密碼」 |
+| 2 | `docker compose up -d` | db、minio 皆 `healthy` |
+| 3 | MinIO healthcheck `mc ready local` | 可用（`healthy`）；S3 API 與主控台皆 HTTP 200 |
+| 4 | PostgreSQL 版本 | **17.11** |
+| 5 | 擴充可用性 | `vector 0.8.6`、`btree_gist 1.7` |
+| 6 | `createdb -U fms fms_test` | 成功 |
+| 7 | `down` → `up` 後資料 | **保留**（具名 volume；ACC-7） |
+| 8 | `db/init/*.sql` 首次建庫自動執行 | **成功** |
+| 9 | `backend/` 不存在時掛載 | **不會報錯**，Docker 自動建空目錄 |
+
+**SRS 2.1.5 的 `EXCLUDE USING gist` 約束**（本課教學核心）逐項實測：
+
+| 情境 | 預期 | 實測 |
+|---|---|---|
+| 同工作站時段重疊（09:30–10:30 撞 09:00–10:00） | 擋下 | **擋下**，SQLSTATE `23P01` |
+| 邊界接續（10:00–11:00 接 09:00–10:00） | 通過 | **通過**（證實 `'[)'` 含頭不含尾） |
+| 不同工作站同時段 | 通過 | **通過** |
+| 與已 `Finished` 的任務重疊 | 通過 | **通過**（部分索引 `WHERE status <> 'Finished'` 生效） |
+| **兩條連線同時搶同一時段** | 恰好一條成功 | **恰好一條成功**，另一條收 `23P01`；資料表最終只有 1 筆 |
+
+> 最後一列是換成真 PG 伺服器最重要的收穫：**race condition 真的重現得出來，
+> 也真的擋得住**。嵌入式單連線資料庫做不到這個測試。

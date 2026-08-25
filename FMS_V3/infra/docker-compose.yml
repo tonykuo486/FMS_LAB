@@ -40,7 +40,7 @@ services:
       - pgdata:/var/lib/postgresql/data
       # 建表 SQL 放這裡會在「資料庫第一次建立時」自動執行(之後不再跑)。
       # ★路徑相對於本檔(infra/),往上一層找 backend/
-      # 尚未建立 backend/ 之前這行請先註解掉,否則 compose 會報路徑不存在。
+      # backend/ 還不存在也沒關係:Docker 會自動建空目錄,不會報錯(2026-08-25 實測)。
       - ../backend/src/db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       # ★等「PG 真的可接受連線」,不是「容器起來了」——附錄 B 坑 9
