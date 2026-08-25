@@ -32,15 +32,41 @@ bun --version        # 需 Bun 1.4.0（版本鎖定表見 SRS 2.1.11）
 docker --version     # 資料庫走 Docker,開發期就會用到（TECH-4/13）
 ```
 
-**資料庫不需要在本機安裝**——`docker compose up -d db` 就得到一台 PostgreSQL 17
-（映像 `pgvector/pgvector:0.8.6-pg17`）。開發時的啟動順序是：
+**資料庫不需要在本機安裝。** repo 已附 [`docker-compose.yml`](docker-compose.yml)
+（起手包：PostgreSQL 17 + pgvector、MinIO），三步就有環境：
 
 ```bash
-cp .env.example .env          # 設 POSTGRES_PASSWORD（沒設 compose 會直接失敗）
-docker compose up -d db       # ①先起資料庫,等 healthcheck 過
-cd backend  && bun run --watch src/index.ts   # ②後端
+cp .env.example .env          # ★把裡面的密碼全部改掉
+docker compose up -d          # 起 db + minio
+docker compose ps             # 兩個都 healthy 才算好
+```
+
+接著建測試用資料庫（SRS 2.1.6：測試禁連正式庫），這步只做一次：
+
+```bash
+docker compose exec db createdb -U fms fms_test
+```
+
+之後開發時的啟動順序：
+
+```bash
+docker compose up -d                           # ①基礎服務
+cd backend  && bun run --watch src/index.ts    # ②後端
 cd frontend && bun run dev                     # ③前端
 ```
+
+| 服務 | 位址 | 用途 |
+|---|---|---|
+| PostgreSQL | `localhost:5432` | 資料庫（可用 psql／DBeaver 連進去看） |
+| MinIO 主控台 | http://localhost:9001 | 物件儲存管理介面 |
+| MinIO S3 API | `localhost:9000` | **本次作業用不到**，將來 ETL／檔案上傳用 |
+
+> ⚠ 這份 compose 只有**基礎服務**。SRS 2.1.9 要求的交付形態是**三服務**
+> （加上 backend / frontend），ACC-7 驗收跑的是那一份——要自己補完。
+
+> **MinIO 現在可以不管它。** 放進起手包是因為將來要做 CSV 原始檔留存、報表匯出、
+> ETL 中繼檔時直接可用，而 S3 API 是業界標準（換到 AWS S3 是同一套 SDK）。
+> 嫌它佔資源就 `docker compose up -d db` 只起資料庫。
 
 沒有 Bun 就先裝：
 
@@ -117,8 +143,11 @@ mkdir fms-v3 && cd fms-v3
 cp -r /path/to/FMS_LAB/FMS_V3/. .     # Windows PowerShell: Copy-Item -Recurse ...\FMS_V3\* .
 ```
 
-複製過來的只有 `README.md`、`.gitignore` 與 `docs/SRS.md`——**這是正常的**，
-其餘全部是你要寫的。
+複製過來的有 `README.md`、`.gitignore`、`docker-compose.yml`、`.env.example`
+與 `docs/SRS.md`——**沒有任何程式碼是正常的**，其餘全部是你要寫的。
+
+> ★複製後**確認 `.env` 沒有跟著過來**（它不該存在於教材 repo，但你本機跑過就會有）：
+> `ls -a | grep '^\.env$'` 有輸出就先刪掉，等 git init 完再重建。
 
 ### 步驟 2：git init（**注意兩個坑**）
 

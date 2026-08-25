@@ -1,6 +1,6 @@
 # 需求規格書（Lastenheft）：工廠管理系統（Factory Management System）
 
-**程式設計專題 WI（Programming Project WI）** ｜ v3.4（2026-08-25）：TypeScript 全棧版（PostgreSQL 17；版本鎖定見 2.1.11）
+**程式設計專題 WI（Programming Project WI）** ｜ v3.5（2026-08-25）：TypeScript 全棧版（PostgreSQL 17；版本鎖定見 2.1.11）
 
 ---
 
@@ -87,6 +87,7 @@ fms/
 │   │   ├── services/         # scheduling.ts（衝突/證照/能力檢核）、tasks.ts、auth.ts
 │   │   └── db/
 │   │       ├── pool.ts       # pg 連線池單例（含測試用 schema 工廠）
+│   │       ├── init/         # 首次建庫自動執行(compose 掛載到 docker-entrypoint-initdb.d)
 │   │       ├── schema.sql    # 冪等建表（測試建 schema 時直接灌這支）
 │   │       ├── migrations/   # 版本化 migration：001_init.sql, 002_*.sql…（只增不改）
 │   │       └── templates/    # 具名 SQL 模板（每條：name + sql + zod params）
@@ -101,8 +102,8 @@ fms/
 │   ├── package.json
 │   └── vite.config.ts        # /api proxy → http://localhost:3000
 ├── testdata/                 # ACC-1 主測試集 + ACC-4 千筆任務集（CSV）
-├── docker-compose.yml        # db / backend / frontend 三服務
-├── .env.example              # DB 連線參數範本（真 .env 不進版控）
+├── docker-compose.yml        # ★repo 已附起手包(db + minio);交付時補成 db/backend/frontend
+├── .env.example              # ★repo 已附:連線參數範本（真 .env 不進版控）
 ├── .github/workflows/ci.yml  # CI 起 postgres service container
 └── README.md                 # 上手指令：起 db → bun install ×2 → 兩個 dev → 匯入測試集
 ```
@@ -133,6 +134,33 @@ fms/
 
 > 進階選配：權限矩陣可改以 **Casbin**（`casbin` npm 套件）定義 model/policy，Refine 官方有
 > accessControlProvider × Casbin 整合範例——教學上列為加分題，預設用上表的純 TS 矩陣即可。
+
+##### 為什麼本課**不**採用「資料表驅動」的 RBAC
+
+業界常見的 RBAC 做法是把權限存進資料庫（典型五張表：`user` / `role` / `permission` /
+`role_permission` / `user_role`，再加一支 `check_user_permission(user, code)` 函式，
+配 Redis 快取權限查詢結果）。這是**正確且成熟**的設計，規模大時該這樣做。
+
+**但本課刻意不用**，理由是教學順序：
+
+| | 資料表驅動 RBAC | 本課的 TS 權限矩陣 |
+|---|---|---|
+| 權限定義在哪 | 資料庫的列（要查表才知道） | **原始碼裡的一張表**（2.1.4 上表，看得見） |
+| 改權限 | 改資料 + 清快取 | 改程式碼 + 型別檢查會抓錯 |
+| 新增角色 | 多筆 insert | 矩陣多一欄，**漏掉哪個 resource 編譯器會報** |
+| 要多學 | 五張表 + 快取失效 + 遞迴查詢 | 無 |
+| 適合 | 權限要**執行期由管理員調整** | 權限**在設計時就定死**（本課正是如此） |
+
+FMS 的四個角色（Admin／Site Manager／Operator／Anonymous）是**需求寫死的**
+（PERS-3~25），不需要執行期新增角色。這種情況下，把權限放進資料庫只會多一層間接、
+多一個快取失效的 bug 來源，卻學不到更多東西。
+
+**真正該學會的是這條鐵律，兩種做法都一樣**：
+> **前端擋 UX、後端擋安全。** `accessControlProvider` 讓按鈕消失＝體驗；
+> 後端每個端點自己的角色守衛＝安全。少了後端那層，權限模型再漂亮都是裝飾。
+
+> 有興趣做資料表驅動 RBAC 的，列為**加分題**（與 Casbin 同級）——但**先把上表的矩陣
+> 與後端守衛做完**再說。順序反了會兩頭空。
 
 #### 2.1.5 資料庫（PostgreSQL 17）使用規範
 
@@ -317,6 +345,11 @@ export const publicWeekTasks: QueryTemplate = {
 「同一件事全站長同一個樣子」列入 code review 檢核。
 
 #### 2.1.9 Docker Compose 部署規格（TECH-13）
+
+> **開發期起手包已附在 repo：[`../docker-compose.yml`](../docker-compose.yml)**
+> ——只含 `db`（PostgreSQL 17 + pgvector）與 `minio`，讓你 `docker compose up -d`
+> 就有資料庫可用，不必手動裝 PG。**但那份不是交付形態**：ACC-7 驗收要的是本節的
+> 三服務版（含 backend / frontend），得由你自己補完。
 
 單機（Docker Desktop）、**三服務**：`db`（PostgreSQL）＋`backend`（Bun/Elysia）＋
 `frontend`（nginx 服務靜態檔並反代 `/api`）。只有 frontend 對外露 port。
@@ -705,3 +738,4 @@ React 18 + Refine 4 + antd 5 是目前教學資源覆蓋最厚的組合。**版�
 *v3.2（2026-08-25）：TECH-12 離線鐵律/ACC-6 斷網驗收；新增附錄 A~D（里程碑評分/踩坑地圖/Demo 劇本/版本對照），與 V2 版同步骨架、各自技術細節。*
 *v3.3（2026-08-25）：資料庫由 **PGlite（嵌入式）改為 PostgreSQL 17 伺服器**（映像 `pgvector/pgvector:0.8.6-pg17`，Compose `db` 服務）——理由與實戰取捨見 2.1.5；連動更新 TECH-3/4/5/7/12、2.1.1 架構、2.1.2 選型、2.1.3 結構、2.1.6 測試隔離（每檔一個 schema）、2.1.9 部署（三服務＋healthcheck＋離線四件套）、ACC-7、附錄 A M1/M4、附錄 B 坑 2/6/9/10、附錄 D；新增 2.1.10 未來擴充路線（ETL→資料倉儲、pgvector、WrenAI；**不列入驗收**）。功能需求（FACT/TASK/PERS/ACC/EXCL）編號不變。*
 *v3.4（2026-08-25）：新增 **2.1.11 版本鎖定表**（Bun 1.4.0 / Elysia 1.4.29 / pg 8.23.0 / zod 3.25.76 / TS 5.9.3 / React 18.3.1 / antd 5.29.3 / Refine 4.58 / Vite 6.4.3）——以既有生產專案的版本線為基準,經 2026-08-25 實測核實（後端 7/7、前端 2/2 測試通過,前後端 tsc 0 error,vite build 成功）;DB 驅動由 postgres.js 改為 **pg**（顯式連線池,教學考量）;TECH-1 鎖版;2.1.2 選型表補版本;附錄 B 新增坑 11（antd peer 靜默不相容）與坑 12（react-query peer 漏裝）。功能需求編號不變。*
+*v3.5（2026-08-25）：repo 附**開發環境起手包** `docker-compose.yml`（db：PostgreSQL 17 + pgvector;minio：S3 相容儲存,為將來 ETL/檔案上傳預留）與 `.env.example`,學員 `docker compose up -d` 即有資料庫,不必手動安裝;2.1.9 標明起手包與交付形態（三服務）之別;2.1.3 結構補 `db/init/`;2.1.4 新增「為何不採資料表驅動 RBAC」的取捨說明（列為加分題,鐵律仍是前端擋 UX、後端擋安全）。功能需求編號不變。*
