@@ -1,6 +1,10 @@
 # infra — 開發期基礎設施
 
-> ✅ **2026-08-25 實測通過**（Docker 29.5.3 / Compose v5.1.4 on WSL2 Ubuntu）：
+> ✅ **2026-09-02 複驗通過**（infra/ 曾被刪除後加回，已重新核實 12 項全過——
+> 含 PG 17.11、`EXCLUDE` 約束四情境、並行 race、`down`/`up` 保留、`db/init` 自動執行；
+> 詳見本檔末「實測紀錄」）。
+>
+> ✅ **2026-08-25 首次實測**（Docker 29.5.3 / Compose v5.1.4 on WSL2 Ubuntu）：
 > `docker compose up -d` → db 與 minio 皆 `healthy`、PostgreSQL 17.11、
 > pgvector 0.8.6 與 btree_gist 1.7 皆可用、`down`/`up` 後資料保留、
 > `db/init/` 自動執行、[SDD §5](../docs/SDD.md) 的 `EXCLUDE` 約束與並行 race 實測符合預期。
@@ -142,7 +146,34 @@ PG 容器「起來了」不等於「可接受連線」，這是 [GUIDE §2 坑 9
 
 ---
 
-## 實測紀錄（2026-08-25）
+## 實測紀錄
+
+### 2026-09-02 複驗（infra/ 刪除後加回，逐項重跑）
+
+環境：Docker 29.5.3 / Compose v5.1.4，WSL2 Ubuntu。測試用 `.env` 將埠改至
+5435 / 9006 / 9007，避開機器上既有的 `pg-oracle-bridge`、`octo_*`、`aicpa_*` 服務。
+
+| # | 驗證項 | 結果 |
+|---|---|---|
+| 1 | 無 `.env` 啟動 | 擋下，印出自訂訊息 |
+| 2 | `docker compose config` | OK |
+| 3 | `up -d` | db、minio 皆 `healthy` |
+| 4 | PostgreSQL 版本 | **17.11** |
+| 5 | 擴充 | `vector 0.8.6`、`btree_gist 1.7` |
+| 6 | `createdb fms_test` | OK |
+| 7 | `EXCLUDE` 重疊阻擋 | 擋下 |
+| 8 | 邊界接續 10:00 接 10:00 | 通過（`'[)'` 正確） |
+| 9 | 與 `Finished` 重疊 | 通過（部分索引生效） |
+| 10 | **並行 race**（兩連線同搶） | **恰好一條成功**，另一條 `23P01`，表中最終 1 筆 |
+| 11 | `down` → `up` 資料 | **保留**（5 筆） |
+| 12 | `db/init/*.sql` 首次建庫執行 | **成功** |
+| — | MinIO S3 API / Console | HTTP 200 / 200 |
+| — | 跨檔引用（SDD §5/§6/§9/§10、GUIDE 坑 9） | 章節皆存在 |
+
+> 測試後 `down -v` 全清（容器、volume、`.env`、`backend/` 測試目錄），
+> 機器上既有的 12 個服務未受影響。
+
+### 2026-08-25 首次實測
 
 環境：Docker 29.5.3 / Docker Compose v5.1.4，WSL2 Ubuntu on Windows 11。
 測試時以 `.env` 把 port 改到 5xxxx 區段避開既有服務——**這本身也驗證了
