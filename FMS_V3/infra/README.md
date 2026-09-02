@@ -43,12 +43,16 @@ docker compose exec db psql -U fms -d fms -c "SELECT version();"
 
 | 服務 | 從**宿主機**連（開發期） | 從**容器內**連 |
 |---|---|---|
-| PostgreSQL | `localhost:5432` | `db:5432` |
-| MinIO S3 API | `localhost:9000` | `minio:9000` |
-| MinIO 主控台 | http://localhost:9001 | — |
+| PostgreSQL | `localhost:5435` | `db:5432` |
+| MinIO S3 API | `localhost:9006` | `minio:9000` |
+| MinIO 主控台 | http://localhost:9007 | — |
 
 > 開發期你的後端是用 `bun run --watch` 跑在**宿主機**上，所以 `PGHOST=localhost`。
 > 等你把 backend 也容器化（交付形態），才會變成 `PGHOST=db`。
+>
+> **為什麼宿主機側不是 5432 / 9000？** 多數開發機上那兩個埠已被別的 PostgreSQL
+> 或服務佔著，用標準埠會在 `docker compose up -d` 當場撞埠失敗。**容器內側仍是標準的
+> `5432` / `9000`**（上表右欄）——只有對外映射改了號碼。
 
 ## 用 DBeaver 連進資料庫（強烈建議）
 
@@ -67,7 +71,7 @@ DBeaver 選 **Database ▸ New Database Connection ▸ PostgreSQL**，填：
 | 欄位 | 值 | 說明 |
 |---|---|---|
 | **Host** | `localhost` | ★不是 `db`——`db` 是容器內部的名字 |
-| **Port** | `5432` | 若改過 `.env` 的 `POSTGRES_PORT` 就填你改的 |
+| **Port** | `5435` | ★不是 5432——見 `.env.example` 的埠號說明;改過 `POSTGRES_PORT` 就填你改的 |
 | **Database** | `fms` | 測試庫則填 `fms_test` |
 | **Username** | `fms` | `.env` 的 `POSTGRES_USER` |
 | **Password** | 你在 `.env` 設的那組 | `POSTGRES_PASSWORD` |
@@ -138,8 +142,9 @@ fms-v3/
 **backend 連不上資料庫** —— 先確認 `docker compose ps` 是 `healthy`（不是 `starting`）。
 PG 容器「起來了」不等於「可接受連線」，這是 [GUIDE §2 坑 9](../docs/GUIDE.md)。
 
-**port 5432 被占用** —— 本機已經裝過 PostgreSQL。改 `.env` 的 `POSTGRES_PORT`（例如 `5433`），
-記得 `PGPORT` 也要一起改。
+**port 被占用（`port is already allocated`）** —— 本機已有服務佔著該埠。
+改 `.env` 的 `POSTGRES_PORT`（或 `MINIO_*_PORT`），**記得 `PGPORT` 要跟著一起改**。
+查誰占用：`ss -ltn | grep 5435`（WSL）或 `netstat -ano | findstr 5435`（Windows）。
 
 **密碼改了但沒生效** —— PG 的密碼只在**資料庫第一次建立時**寫入。改密碼要
 `docker compose down -v`（★會刪資料）再 `up`。

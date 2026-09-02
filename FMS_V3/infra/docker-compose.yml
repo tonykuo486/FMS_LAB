@@ -33,8 +33,9 @@ services:
       PGTZ: Asia/Taipei
     ports:
       # 開發期需要:後端從「宿主機」跑(bun run --watch),要連得到這個 port。
-      # 想讓外部連不到就改成 "127.0.0.1:5432:5432"(只綁本機)。
-      - "${POSTGRES_PORT:-5432}:5432"
+      # 想讓外部連不到就改成 "127.0.0.1:5435:5432"(只綁本機)。
+      # 左=宿主機埠(避開常見占用,見 .env.example 說明);右=容器內,固定 5432
+      - "${POSTGRES_PORT:-5435}:5432"
     volumes:
       # 具名 volume:容器重建資料不丟(ACC-7 會驗)
       - pgdata:/var/lib/postgresql/data
@@ -63,8 +64,8 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?請在 .env 設定 MinIO 密碼(至少 8 碼)}
       TZ: Asia/Taipei
     ports:
-      - "${MINIO_API_PORT:-9000}:9000"      # S3 API
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"  # 網頁管理介面
+      - "${MINIO_API_PORT:-9006}:9000"      # S3 API
+      - "${MINIO_CONSOLE_PORT:-9007}:9001"  # 網頁管理介面
     volumes:
       - miniodata:/data
     healthcheck:
