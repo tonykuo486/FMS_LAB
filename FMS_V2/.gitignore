@@ -1,0 +1,62 @@
+# FMS_V2 (.gitignore) — Python / Django / uv
+#
+# 原則:能重建的、體積大的、機敏的 → 忽略;其餘進版控。
+# ★三個「看起來該忽略、但絕對不能忽略」的例外,已在下方標注 —— 忽略了會讓
+#   斷網驗收(ACC-6)或別人 clone 後的 docker build 直接失敗。
+
+# ── Python ───────────────────────────────────────────────────
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── uv ───────────────────────────────────────────────────────
+# 離線 wheelhouse:體積大,且可由 uv.lock 重新 export(SDD §2 離線三件套)
+wheels/
+#
+# ★ uv.lock          【要】進版控 —— 環境可重現的唯一真相,助教靠它還原
+# ★ pyproject.toml   【要】進版控
+# ★ requirements.txt 【要】進版控 —— SDD §2 的 Dockerfile 會 COPY 它;
+#                    忽略掉 → 別人 clone 後 docker build 失敗,而你本機正常
+#                    (Docker 看 .dockerignore,不看 .gitignore),很難查。
+#                    它由 uv export 產生,改依賴後記得重新 export 並一起 commit。
+
+# ── Django ───────────────────────────────────────────────────
+# SQLite 落在 volume(SDD §2),不進版控
+data/
+*.sqlite3
+db.sqlite3
+*.sqlite3-journal
+
+# collectstatic 的「輸出」目錄(產物,可重建)
+staticfiles/
+#
+# ★ static/lib/ 【要】進版控 —— TECH-12 離線鐵律要求 AdminLTE / Bootstrap /
+#   jQuery / 圖示字型 vendor 進 repo。**別寫 `static/`**,那會把離線資產一起
+#   擋掉,斷網驗收(ACC-6)當場掛掉。
+
+# ⚠ .gitignore 不支援「行尾註解」——`media/  # 說明` 會把整串當成 pattern,
+#   結果什麼都沒擋到。註解一律自己一行。(這條是實測踩出來的)
+# 使用者上傳(若有)
+media/
+# 本地覆寫設定
+local_settings.py
+*.log
+
+# ── 機敏(公開 repo 絕不可外流) ───────────────────────────────
+.env
+.env.*
+!.env.example
+**/.env
+
+# ── 編輯器 / 作業系統 ────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db

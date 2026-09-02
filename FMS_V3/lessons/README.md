@@ -26,7 +26,8 @@
 
 ### 框架 / 工具的坑
 
-- [xxx.md](xxx.md) — [一句話說明]
+- [mermaid-88-相容基線.md](mermaid-88-相容基線.md) — 本機預覽器是 mermaid 8.8.0,新語法會炸;畫圖前先過六條基線
+- [gitignore-行尾註解無效.md](gitignore-行尾註解無效.md) — `.gitignore` 的 `#` 只在行首是註解;行尾註解=規則靜默失效
 
 ---
 

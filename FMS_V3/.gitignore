@@ -1,0 +1,46 @@
+# FMS_V3 (.gitignore) — TypeScript / Bun / PostgreSQL
+#
+# 原則:能重建的、體積大的、機敏的 → 忽略;其餘進版控。
+# ★兩個「看起來該忽略、但絕對不能忽略」的例外,已在下方標注。
+
+# ── Bun / Node ───────────────────────────────────────────────
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+coverage/
+#
+# ★ bun.lock 【要】進版控 —— 環境可重現的唯一真相。
+#   SDD §11 版本鎖定表要求 package.json 寫死版本(不加 ^),
+#   lockfile 是那張表的執行保證;助教 `bun install` 必須還原出一模一樣的版本樹。
+
+# ── 資料庫 ───────────────────────────────────────────────────
+# PostgreSQL 的資料在 Docker【具名 volume】(pgdata),本來就不在專案目錄下;
+# 這幾條是保險:萬一有人改成 bind mount,別讓資料庫檔案進版控。
+data/
+pgdata/
+*.sqlite3
+
+# ── 機敏(公開 repo 絕不可外流) ───────────────────────────────
+.env
+.env.*
+**/.env
+#
+# ★ infra/.env.example 【要】進版控 —— 學員照它 `cp .env.example .env`。
+#   下面這條反向規則負責放行;裡面的值一律是 change-me 佔位,不可寫真密碼。
+!.env.example
+!infra/.env.example
+
+# ── 測試 / 工具產物 ──────────────────────────────────────────
+playwright-report/
+test-results/
+*.log
+
+# ── 編輯器 / 作業系統 ────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
